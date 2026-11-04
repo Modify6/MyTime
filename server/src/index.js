@@ -18,6 +18,7 @@ const TOKEN = crypto.createHmac('sha256', PASSWORD).update('mytime-token-v1').di
 const app = Fastify({ logger: false, bodyLimit: 10 * 1024 * 1024 });
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const backupsDir = path.join(dataDir, 'backups');
+const clientLogDir = path.join(dataDir, 'client-logs');
 const db = openDb(dataDir);
 
 await app.register(cors, { origin: true });
@@ -77,6 +78,24 @@ app.get('/api/backup/file', async (req, reply) => {
   reply.header('Content-Type', 'application/json');
   reply.header('Content-Disposition', `attachment; filename="${name}"`);
   return fs.createReadStream(file);
+});
+
+// —— 客户端运行日志收集（手机排障用，保留最近 20 份） ——
+app.post('/api/client-log', async (req, reply) => {
+  const text = req.body?.text;
+  if (typeof text !== 'string' || !text.trim()) return reply.code(400).send({ error: 'empty log' });
+  fs.mkdirSync(clientLogDir, { recursive: true });
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = `log-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.txt`;
+  fs.writeFileSync(path.join(clientLogDir, name), text.slice(0, 200_000));
+  const files = fs
+    .readdirSync(clientLogDir)
+    .filter((f) => f.startsWith('log-') && f.endsWith('.txt'))
+    .sort()
+    .reverse();
+  for (const old of files.slice(20)) fs.unlinkSync(path.join(clientLogDir, old));
+  return { ok: true, name };
 });
 
 await app.listen({ port: PORT, host: '0.0.0.0' });

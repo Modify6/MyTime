@@ -45,4 +45,6 @@ export const api = {
     if (!res.ok) throw new ApiError(`下载失败(${res.status})`, res.status);
     return res.blob();
   },
+  // 手机端运行日志上传到服务器（电脑端 server/data/client-logs/ 查看）
+  uploadClientLog: (text) => request('POST', '/api/client-log', { text }),
 };

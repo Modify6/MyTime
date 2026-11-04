@@ -156,6 +156,18 @@ async function copyLogs() {
   }
 }
 
+async function uploadLogs() {
+  try {
+    const text =
+      (await logsToText(500)) +
+      `\n设备: ${isNativeApp ? 'APK' : 'Web'} · ${navigator.userAgent.slice(0, 100)}`;
+    const res = await api.uploadClientLog(text);
+    showToast(`已上传：${res.name}（电脑 server/data/client-logs/ 查看）`);
+  } catch (e) {
+    showToast(e.message || '上传失败');
+  }
+}
+
 function exportLogs() {
   logsToText(500).then((text) => {
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -344,6 +356,7 @@ onUnmounted(() => clearInterval(logTimer));
         <span>运行日志 v{{ APP_VERSION }}</span>
         <div style="display: flex; gap: 6px">
           <van-button size="small" plain round @click="copyLogs">复制</van-button>
+          <van-button v-if="auth.hasToken" size="small" plain round type="primary" @click="uploadLogs">上传</van-button>
           <van-button size="small" plain round @click="exportLogs">导出</van-button>
           <van-button size="small" plain round type="danger" @click="doClear">清空</van-button>
         </div>
