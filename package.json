@@ -1,0 +1,17 @@
+{
+  "name": "mytime",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "柳比歇夫时间统计法工具 —— 打卡记录、分类统计、决策参照",
+  "scripts": {
+    "dev": "concurrently -n srv,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix web run dev\"",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix web run test",
+    "icons": "node scripts/gen-icons.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
