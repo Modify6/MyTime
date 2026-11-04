@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import TodayView from './views/TodayView.vue';
-import RecordsView from './views/RecordsView.vue';
-import StatsView from './views/StatsView.vue';
-import GoalsView from './views/GoalsView.vue';
-import GoalDetailView from './views/GoalDetailView.vue';
-import SettingsView from './views/SettingsView.vue';
+
+// 路由级代码分割：每个页面独立 chunk，首屏不加载 echarts 等重组件
+const TodayView = () => import('./views/TodayView.vue');
+const RecordsView = () => import('./views/RecordsView.vue');
+const StatsView = () => import('./views/StatsView.vue');
+const GoalsView = () => import('./views/GoalsView.vue');
+const GoalDetailView = () => import('./views/GoalDetailView.vue');
+const SettingsView = () => import('./views/SettingsView.vue');
 
 const router = createRouter({
   history: createWebHistory(),
