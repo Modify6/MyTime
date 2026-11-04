@@ -25,3 +25,5 @@ if (gradle === before) {
   fs.writeFileSync(gradlePath, gradle);
   console.log(`版本已写入: versionName ${version} · versionCode ${versionCode}`);
 }
+// 供 apk.bat 读取，给打包产物命名（MyTime-v<版本>.apk）
+fs.writeFileSync('E:/study/zi/MyTime/.apk-version', version);

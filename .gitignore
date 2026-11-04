@@ -15,3 +15,5 @@ MyTime.apk
 
 # ZCode 工具内部文件
 .zcode/
+
+.apk-version
