@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MyTime 时间账本</string>
+    <string name="title_activity_main">MyTime 时间账本</string>
+    <string name="package_name">com.mytime.app</string>
+    <string name="custom_url_scheme">com.mytime.app</string>
+</resources>
