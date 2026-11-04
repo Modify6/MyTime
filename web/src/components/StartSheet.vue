@@ -24,6 +24,24 @@ const goalId = ref(null);
 const allEvents = ref([]);
 const starting = ref(false);
 
+// 预计用时：标题命中历史习惯时自动预填其平均用时（四舍五入到 5 分钟）
+const EST_OPTIONS = [
+  { min: 15, label: '15分' },
+  { min: 30, label: '30分' },
+  { min: 45, label: '45分' },
+  { min: 60, label: '1小时' },
+  { min: 90, label: '1.5小时' },
+  { min: 120, label: '2小时' },
+];
+const estimateMin = ref(null);
+const estimateTouched = ref(false);
+
+watch(title, (t) => {
+  if (estimateTouched.value) return;
+  const h = titleHint(allEvents.value, t);
+  estimateMin.value = h ? Math.max(5, Math.round(h.avgMs / 60000 / 5) * 5) : null;
+});
+
 watch(
   () => props.show,
   async (v) => {
@@ -31,6 +49,8 @@ watch(
     allEvents.value = await getAllEvents();
     title.value = '';
     goalId.value = null;
+    estimateMin.value = null;
+    estimateTouched.value = false;
     categoryId.value = catalog.sortedCategories[0]?.id || '';
   }
 );
@@ -57,7 +77,12 @@ async function start() {
   if (!categoryId.value) return showToast('请先在设置里添加分类');
   starting.value = true;
   try {
-    await timer.start({ title: title.value, categoryId: categoryId.value, goalId: goalId.value });
+    await timer.start({
+      title: title.value,
+      categoryId: categoryId.value,
+      goalId: goalId.value,
+      estimateMs: estimateMin.value ? estimateMin.value * 60000 : null,
+    });
     showToast('已开始计时');
     emit('update:show', false);
     emit('started');
@@ -110,6 +135,19 @@ async function start() {
       <div class="hint-box" v-if="hint">
         <span class="hint-label">历史参照</span>
         上次 {{ fmtDur(hint.lastMs) }} · 平均 {{ fmtDur(hint.avgMs) }} · 共 {{ hint.count }} 次
+      </div>
+
+      <div class="field-label">预计用时（选填，结束时可对比偏差）</div>
+      <div class="cat-grid">
+        <button
+          v-for="opt in EST_OPTIONS"
+          :key="opt.min"
+          class="cat-item"
+          :class="{ active: estimateMin === opt.min }"
+          @click="estimateTouched = true; estimateMin = estimateMin === opt.min ? null : opt.min"
+        >
+          {{ opt.label }}
+        </button>
       </div>
 
       <div class="field-label">分类</div>

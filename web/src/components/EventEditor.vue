@@ -23,7 +23,10 @@ watch(
   (v) => {
     if (!v) return;
     if (props.event) {
-      form.value = { ...props.event };
+      form.value = {
+        ...props.event,
+        estimateMin: props.event.estimateMs ? Math.round(props.event.estimateMs / 60000) : '',
+      };
     } else {
       const now = Date.now();
       form.value = {
@@ -34,6 +37,7 @@ watch(
         startAt: now - 60 * 60 * 1000,
         endAt: now,
         note: '',
+        estimateMin: '',
         createdAt: now,
       };
     }
@@ -44,7 +48,15 @@ async function save() {
   const f = form.value;
   if (!f.categoryId) return showToast('请选择分类');
   if (f.endAt != null && f.endAt < f.startAt) return showToast('结束时间不能早于开始时间');
-  await putRow('events', { ...f, title: (f.title || '').trim() || '未命名事项' });
+  const estimateMs =
+    f.estimateMin === '' || f.estimateMin == null
+      ? null
+      : Number(f.estimateMin) > 0
+        ? Math.round(Number(f.estimateMin) * 60000)
+        : null;
+  if (f.estimateMin !== '' && f.estimateMin != null && !estimateMs) return showToast('预计用时需为正数（分钟）');
+  const { estimateMin, ...row } = f;
+  await putRow('events', { ...row, title: (f.title || '').trim() || '未命名事项', estimateMs });
   showToast('已保存');
   emit('update:show', false);
   emit('saved');
@@ -75,6 +87,7 @@ async function remove() {
       <div class="sheet-title">{{ event ? '编辑记录' : '补录时段' }}</div>
 
       <van-field v-model="form.title" placeholder="事项名称" clearable />
+      <van-field v-model="form.estimateMin" type="number" placeholder="预计用时（分钟，选填，用于计划对比）" />
 
       <div class="field-label">分类</div>
       <div class="cat-grid">

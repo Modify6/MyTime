@@ -36,6 +36,35 @@ export function byTitle(events, topN = Infinity) {
     .slice(0, topN);
 }
 
+// 计划 vs 实际：仅统计带预估（estimateMs）且已结束的事件；pct = (实际-预估)/预估，正=超出预估
+export function estimateCompare(events) {
+  const withEst = events.filter((e) => e.estimateMs > 0 && e.endAt != null);
+  if (!withEst.length) return null;
+  const estMs = withEst.reduce((s, e) => s + e.estimateMs, 0);
+  const actMs = withEst.reduce((s, e) => s + dur(e), 0);
+  return {
+    count: withEst.length,
+    estMs,
+    actMs,
+    pct: estMs > 0 ? Math.round(((actMs - estMs) / estMs) * 100) : 0,
+  };
+}
+
+export function estimateByCategory(events) {
+  const m = new Map();
+  for (const e of events) {
+    if (!(e.estimateMs > 0) || e.endAt == null) continue;
+    const o = m.get(e.categoryId) || { estMs: 0, actMs: 0, count: 0 };
+    o.estMs += e.estimateMs;
+    o.actMs += dur(e);
+    o.count += 1;
+    m.set(e.categoryId, o);
+  }
+  return [...m.entries()]
+    .map(([categoryId, v]) => ({ categoryId, ...v }))
+    .sort((a, b) => b.actMs - a.actMs);
+}
+
 // 3900000 -> "1小时5分"；2700000 -> "45分钟"
 export function fmtDur(ms) {
   if (ms <= 0) return '0';
@@ -57,8 +86,12 @@ export function reportText({ rangeStart, events, categories }) {
   const lines = [
     `${d.format('M月D日')}（${WEEKDAYS[d.day()]}）· 柳比歇夫记录`,
     `合计纯时间 ${fmtDur(total)} ｜ ${events.length} 条记录`,
-    '',
   ];
+  const est = estimateCompare(events);
+  if (est) {
+    lines.push(`预估 ${fmtDur(est.estMs)} · 实际 ${fmtDur(est.actMs)}（偏差 ${est.pct >= 0 ? '+' : ''}${est.pct}%）`);
+  }
+  lines.push('');
   if (!events.length) lines.push('（本时段暂无记录）');
   for (const { categoryId, ms } of byCategory(events)) {
     const cat = catMap[categoryId];

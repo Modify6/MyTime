@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { showToast } from 'vant';
 import { getEventsBetween, getCategories, onChange } from '../db/repo.js';
 import { rangeFor, shiftCursor, fmtDur } from '../lib/time.js';
-import { byCategory, byTitle, totalMs, reportText } from '../stats/aggregate.js';
+import { byCategory, byTitle, totalMs, reportText, estimateCompare, estimateByCategory } from '../stats/aggregate.js';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
 import { useCatalogStore } from '../stores/catalog.js';
@@ -63,6 +63,13 @@ const delta = computed(() => {
 
 const catTotals = computed(() => byCategory(events.value));
 const topItems = computed(() => byTitle(events.value, 8));
+
+// 计划 vs 实际（仅有预估的事件）
+const planActual = computed(() => estimateCompare(events.value));
+const planByCat = computed(() => estimateByCategory(events.value));
+const planMax = computed(() =>
+  Math.max(1, ...planByCat.value.flatMap((r) => [r.estMs, r.actMs]))
+);
 
 const pieOption = computed(() => ({
   tooltip: {
@@ -141,6 +148,36 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
       </div>
     </div>
 
+    <div v-if="planActual" class="card">
+      <div class="section-title" style="margin-top: 0">
+        <span>计划 vs 实际</span>
+        <span class="muted">{{ planActual.count }} 条有预估</span>
+      </div>
+      <div class="pa-summary">
+        预估 {{ fmtDur(planActual.estMs) }} · 实际 {{ fmtDur(planActual.actMs) }}
+        <b :style="{ color: planActual.pct > 0 ? '#f5a623' : '#34c273' }">
+          （{{ planActual.pct > 0 ? '+' : '' }}{{ planActual.pct }}%）
+        </b>
+      </div>
+      <div class="muted" style="margin: 2px 0 8px">偏差为实际相对预估：正 = 超出预估，负 = 快于预估</div>
+      <div class="pa-row" v-for="r in planByCat" :key="r.categoryId">
+        <span class="name">{{ catalog.catName(r.categoryId) }}</span>
+        <div class="pa-bars">
+          <div class="track">
+            <div class="fill est" :style="{ width: (r.estMs / planMax) * 100 + '%' }"></div>
+          </div>
+          <div class="track">
+            <div class="fill act" :style="{ width: (r.actMs / planMax) * 100 + '%', '--c': catalog.catColor(r.categoryId) }"></div>
+          </div>
+        </div>
+        <span class="val">{{ fmtDur(r.actMs) }}</span>
+      </div>
+      <div class="pa-legend">
+        <span><i class="swatch" style="background: #c3c9d4"></i>预估</span>
+        <span><i class="swatch" style="background: var(--brand)"></i>实际</span>
+      </div>
+    </div>
+
     <div v-if="catTotals.length" class="card">
       <div class="section-title" style="margin-top: 0">分类占比</div>
       <EChart :option="pieOption" height="240px" />
@@ -175,5 +212,69 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
 }
 .nav-mid {
   flex: 1;
+}
+.pa-summary {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.pa-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.pa-row .name {
+  width: 64px;
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.pa-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pa-bars .track {
+  height: 7px;
+  border-radius: 4px;
+  background: #f0f2f8;
+  overflow: hidden;
+}
+.pa-bars .fill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+}
+.pa-bars .fill.est {
+  background: #c3c9d4;
+}
+.pa-bars .fill.act {
+  background: var(--c, var(--brand));
+}
+.pa-row .val {
+  width: 70px;
+  flex: none;
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.pa-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.pa-legend .swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
 }
 </style>

@@ -6,9 +6,11 @@ import { useAuthStore } from '../stores/auth.js';
 import { useSyncStore } from '../stores/sync.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import { db } from '../db/schema.js';
-import { adoptRow } from '../db/repo.js';
+import { adoptRow, getMeta } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
 import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
+import { getAutoBackup, setAutoBackup } from '../auth/local.js';
+import { api } from '../api/client.js';
 import dayjs from 'dayjs';
 
 const auth = useAuthStore();
@@ -172,9 +174,60 @@ async function doClear() {
   showToast('已清空');
 }
 
+// —— 服务器快照备份 ——
+const autoBackup = ref(getAutoBackup());
+const backups = ref([]);
+const lastBackupAt = ref(null);
+const backingUp = ref(false);
+
+async function loadBackups() {
+  if (!auth.hasToken) return;
+  try {
+    const r = await api.backupList();
+    backups.value = (r.backups || []).slice(0, 10);
+    lastBackupAt.value = await getMeta('lastBackupAt', null);
+  } catch {
+    // 服务器不可达时静默，列表保持上次状态
+  }
+}
+
+function toggleAutoBackup(v) {
+  setAutoBackup(v);
+  autoBackup.value = v;
+  showToast(v ? '已开启自动每日备份' : '已关闭自动备份');
+}
+
+async function backupNow() {
+  backingUp.value = true;
+  try {
+    const res = await api.serverBackup();
+    await setMeta('lastBackupAt', Date.now());
+    showToast(`已备份：${res.name}`);
+    await loadBackups();
+  } catch (e) {
+    showToast(e.message || '备份失败');
+  } finally {
+    backingUp.value = false;
+  }
+}
+
+async function downloadBackup(b) {
+  try {
+    const blob = await api.backupDownload(b.name);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = b.name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    showToast(e.message || '下载失败');
+  }
+}
+
 onMounted(() => {
   if (auth.hasToken) sync.setup();
   loadLogs();
+  loadBackups();
   logTimer = setInterval(loadLogs, 10_000);
 });
 onUnmounted(() => clearInterval(logTimer));
@@ -263,6 +316,26 @@ onUnmounted(() => clearInterval(logTimer));
         <input ref="file" type="file" accept="application/json,.json" style="display: none" @change="importData" />
       </div>
       <div class="muted" style="margin-top: 8px">导出包含全部数据（含已删除记录的墓碑，用于多端同步一致性）。</div>
+
+      <template v-if="auth.hasToken">
+        <div class="backup-line">
+          <span>自动每日快照<span class="muted">（存于服务器，保留 30 份）</span></span>
+          <van-switch :model-value="autoBackup" size="20px" @update:model-value="toggleAutoBackup" />
+        </div>
+        <div class="sync-line">
+          <span class="muted">上次快照</span>
+          <span>{{ lastBackupAt ? dayjs(lastBackupAt).format('MM-DD HH:mm') : '—' }}</span>
+        </div>
+        <van-button size="small" round plain type="primary" :loading="backingUp" @click="backupNow">立即备份快照</van-button>
+        <div v-if="backups.length" class="backup-list">
+          <div v-for="b in backups" :key="b.name" class="backup-item" @click="downloadBackup(b)">
+            <span>{{ b.name }}</span>
+            <span class="muted">{{ Math.round(b.size / 1024) }}KB</span>
+          </div>
+          <div class="muted" style="padding: 3px 0 0">点击文件名可下载</div>
+        </div>
+      </template>
+      <div v-else class="muted" style="margin-top: 8px">连接同步服务器后，可开启「自动每日快照」——服务器每天留存一份数据副本（保留 30 份）。</div>
     </div>
 
     <!-- 运行日志 -->
@@ -424,5 +497,32 @@ onUnmounted(() => clearInterval(logTimer));
 }
 .log-line.warn {
   color: #d48806;
+}
+.backup-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 4px;
+  font-size: 13.5px;
+}
+.backup-list {
+  margin-top: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #fafbfd;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.backup-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+.backup-item:last-of-type {
+  border-bottom: 0;
 }
 </style>

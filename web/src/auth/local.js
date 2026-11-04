@@ -24,9 +24,14 @@ const safe = {
 
 const K_SERVER = 'mytime.server';
 const K_TOKEN = 'mytime.token';
+const K_AUTOBACKUP = 'mytime.autobackup';
 
 export const getServerUrl = () => safe.get(K_SERVER) || '';
 export const setServerUrl = (v) => (v ? safe.set(K_SERVER, v) : safe.del(K_SERVER));
 export const getToken = () => safe.get(K_TOKEN) || '';
 export const setToken = (v) => (v ? safe.set(K_TOKEN, v) : safe.del(K_TOKEN));
 export const isLoggedIn = () => !!getToken();
+
+// 自动每日备份开关（默认开启；显式存 '0' 表示关闭）
+export const getAutoBackup = () => safe.get(K_AUTOBACKUP) !== '0';
+export const setAutoBackup = (v) => (v ? safe.del(K_AUTOBACKUP) : safe.set(K_AUTOBACKUP, '0'));

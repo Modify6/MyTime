@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { dur, totalMs, byCategory, byTitle, fmtDur, reportText } from '../src/stats/aggregate.js';
+import {
+  dur,
+  totalMs,
+  byCategory,
+  byTitle,
+  fmtDur,
+  reportText,
+  estimateCompare,
+  estimateByCategory,
+} from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
 
@@ -89,6 +98,44 @@ describe('historyHint（决策参照）', () => {
     expect(categoryHint(events, 'sport').avgMs).toBe(30 * MIN);
     expect(titleHint(events, '不存在')).toBe(null);
     expect(titleHint(events, '  ')).toBe(null);
+  });
+});
+
+describe('计划 vs 实际', () => {
+  const events = [
+    ev('1', '写论文', 'work', 0, HOUR, { estimateMs: 2 * HOUR }), // 实际1h / 预估2h
+    ev('2', '开会', 'work', 2 * HOUR, 3 * HOUR, { estimateMs: HOUR }), // 实际1h / 预估1h
+    ev('3', '无预估', 'other', 4 * HOUR, 5 * HOUR),
+    ev('4', '进行中', 'work', 6 * HOUR, null, { estimateMs: HOUR }), // 进行中不计
+  ];
+
+  it('estimateCompare 汇总并计算偏差', () => {
+    const r = estimateCompare(events);
+    expect(r.count).toBe(2);
+    expect(r.estMs).toBe(3 * HOUR);
+    expect(r.actMs).toBe(2 * HOUR);
+    expect(r.pct).toBe(-33); // (2-3)/3
+  });
+
+  it('无预估事件返回 null', () => {
+    expect(estimateCompare([ev('9', 'x', 0, HOUR)])).toBe(null);
+  });
+
+  it('estimateByCategory 按分类汇总', () => {
+    const r = estimateByCategory(events);
+    expect(r).toHaveLength(1);
+    expect(r[0].categoryId).toBe('work');
+    expect(r[0].estMs).toBe(3 * HOUR);
+    expect(r[0].actMs).toBe(2 * HOUR);
+  });
+
+  it('报告含预估偏差行', () => {
+    const text = reportText({
+      rangeStart: 0,
+      events,
+      categories: [{ id: 'work', name: '工作' }],
+    });
+    expect(text).toContain('预估 3小时 · 实际 2小时（偏差 -33%）');
   });
 });
 

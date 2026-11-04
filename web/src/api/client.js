@@ -33,4 +33,16 @@ export const api = {
   login: (password) => request('POST', '/api/auth', { password }),
   sync: (payload) => request('POST', '/api/sync', payload),
   serverExport: () => request('GET', '/api/export'),
+  // —— 服务端快照备份 ——
+  serverBackup: () => request('POST', '/api/backup'),
+  backupList: () => request('GET', '/api/backup/list'),
+  // 下载指定快照（返回 Blob，由调用方触发保存）
+  backupDownload: async (name) => {
+    const base = getServerUrl().replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/backup/file?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new ApiError(`下载失败(${res.status})`, res.status);
+    return res.blob();
+  },
 };

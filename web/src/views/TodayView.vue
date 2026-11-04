@@ -62,7 +62,15 @@ async function quickStart(item) {
 
 async function stop() {
   const ev = await timer.stopCurrent();
-  if (ev) showToast(`已记录 ${fmtDur(ev.endAt - ev.startAt)}`);
+  if (ev) {
+    let msg = `已记录 ${fmtDur(ev.endAt - ev.startAt)}`;
+    // 带预估时立即反馈计划偏差（柳比歇夫闭环的即时一环）
+    if (ev.estimateMs > 0) {
+      const pct = Math.round(((ev.endAt - ev.startAt - ev.estimateMs) / ev.estimateMs) * 100);
+      msg += ` · 预估 ${fmtDur(ev.estimateMs)}（${pct >= 0 ? '+' : ''}${pct}%）`;
+    }
+    showToast(msg);
+  }
 }
 
 async function discard() {
