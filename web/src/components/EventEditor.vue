@@ -16,7 +16,12 @@ const emit = defineEmits(['update:show', 'saved']);
 const catalog = useCatalogStore();
 
 const form = ref(null);
+const splitAt = ref(null);
 const running = computed(() => form.value && form.value.endAt == null);
+// 已结束且超过 5 分钟的记录才可拆分
+const canSplit = computed(
+  () => form.value && form.value.endAt != null && form.value.endAt - form.value.startAt > 5 * 60_000
+);
 
 watch(
   () => props.show,
@@ -41,6 +46,10 @@ watch(
         createdAt: now,
       };
     }
+    // 拆分时间点默认为记录中点
+    splitAt.value = canSplit.value
+      ? Math.round((form.value.startAt + form.value.endAt) / 2)
+      : null;
   }
 );
 
@@ -65,6 +74,32 @@ async function save() {
 async function stopNow() {
   form.value = { ...form.value, endAt: Date.now() };
   await save();
+}
+
+async function doSplit() {
+  const f = form.value;
+  const s = splitAt.value;
+  if (!s || s <= f.startAt || s >= f.endAt) return showToast('拆分时间需在起止时间之间');
+  const ratio = (s - f.startAt) / (f.endAt - f.startAt);
+  const est1 = f.estimateMs ? Math.max(1, Math.round(f.estimateMs * ratio)) : null;
+  const est2 = f.estimateMs ? f.estimateMs - est1 : null;
+  // 前半段：原记录截断
+  await putRow('events', { ...f, endAt: s, estimateMs: est1, estimateMin: undefined });
+  // 后半段：新记录，事项/分类/目标/备注继承
+  await putRow('events', {
+    id: uuid(),
+    title: f.title,
+    categoryId: f.categoryId,
+    goalId: f.goalId,
+    startAt: s,
+    endAt: f.endAt,
+    note: f.note,
+    estimateMs: est2,
+    createdAt: Date.now(),
+  });
+  showToast('已拆分为两条记录');
+  emit('update:show', false);
+  emit('saved');
 }
 
 async function remove() {
@@ -128,6 +163,19 @@ async function remove() {
       </template>
       <div v-else class="muted" style="margin-top: 10px">该事项正在计时中，结束时间由打卡决定。</div>
 
+      <template v-if="canSplit">
+        <div class="field-label">从中间拆成两条（两件事连着记了？）</div>
+        <div class="split-row">
+          <input
+            class="dt-input"
+            type="datetime-local"
+            :value="toLocalInput(splitAt)"
+            @input="splitAt = fromLocalInput($event.target.value)"
+          />
+          <van-button size="small" plain type="primary" @click="doSplit">拆分</van-button>
+        </div>
+      </template>
+
       <div class="field-label">备注</div>
       <van-field
         v-model="form.note"
@@ -171,6 +219,14 @@ async function remove() {
   background: #fafbfd;
   color: var(--text);
   font-family: inherit;
+}
+.split-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.split-row .dt-input {
+  flex: 1;
 }
 .btn-row {
   display: flex;
