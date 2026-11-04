@@ -8,10 +8,10 @@ import crypto from 'node:crypto';
 export const TABLES = {
   categories: ['id', 'name', 'color', 'sort', 'createdAt', 'updatedAt', 'deleted'],
   goals: ['id', 'name', 'description', 'color', 'targetHours', 'archived', 'createdAt', 'updatedAt', 'deleted'],
-  events: ['id', 'title', 'categoryId', 'goalId', 'startAt', 'endAt', 'note', 'createdAt', 'updatedAt', 'deleted'],
+  events: ['id', 'title', 'categoryId', 'goalId', 'startAt', 'endAt', 'note', 'estimateMs', 'createdAt', 'updatedAt', 'deleted'],
 };
 
-const INT_COLS = new Set(['sort', 'createdAt', 'updatedAt', 'deleted', 'startAt', 'endAt', 'archived']);
+const INT_COLS = new Set(['sort', 'createdAt', 'updatedAt', 'deleted', 'startAt', 'endAt', 'archived', 'estimateMs']);
 const FLOAT_COLS = new Set(['targetHours']);
 
 export function openDb(dataDir) {
@@ -33,14 +33,23 @@ export function openDb(dataDir) {
     CREATE TABLE IF NOT EXISTS events (
       "id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "goalId" TEXT,
       "startAt" INTEGER NOT NULL, "endAt" INTEGER, "note" TEXT NOT NULL DEFAULT '',
-      "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "estimateMs" INTEGER, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events("startAt");
     CREATE INDEX IF NOT EXISTS idx_rev ON events("serverRev");
   `);
+  migrateSchema(db);
   seedDefaultCategories(db);
   return db;
+}
+
+// 老库升级：逐列补齐新增字段（幂等）
+function migrateSchema(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(events)').all().map((c) => c.name));
+  if (!cols.has('estimateMs')) {
+    db.exec('ALTER TABLE events ADD COLUMN "estimateMs" INTEGER');
+  }
 }
 
 // 首次启动时写入默认分类（柳比歇夫分类法的常见维度）
@@ -120,6 +129,33 @@ export function exportAll(db) {
     data[table] = db.prepare(`SELECT * FROM "${table}"`).all();
   }
   return data;
+}
+
+const BACKUP_NAME_RE = /^backup-\d{8}-\d{6}\.json$/;
+export const isBackupName = (name) => BACKUP_NAME_RE.test(name);
+
+// 生成一次备份快照并裁剪旧备份（保留最近 30 份）
+export function createBackupSnapshot(db, backupsDir) {
+  fs.mkdirSync(backupsDir, { recursive: true });
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = `backup-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.json`;
+  fs.writeFileSync(path.join(backupsDir, name), JSON.stringify(exportAll(db)));
+  const files = fs.readdirSync(backupsDir).filter((f) => BACKUP_NAME_RE.test(f)).sort().reverse();
+  for (const old of files.slice(30)) fs.unlinkSync(path.join(backupsDir, old));
+  return { name, time: Date.now(), size: fs.statSync(path.join(backupsDir, name)).size };
+}
+
+export function listBackups(backupsDir) {
+  if (!fs.existsSync(backupsDir)) return [];
+  return fs
+    .readdirSync(backupsDir)
+    .filter((f) => BACKUP_NAME_RE.test(f))
+    .map((f) => {
+      const st = fs.statSync(path.join(backupsDir, f));
+      return { name: f, time: st.mtimeMs, size: st.size };
+    })
+    .sort((a, b) => b.time - a.time);
 }
 
 export function randomId() {

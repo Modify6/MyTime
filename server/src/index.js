@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDb, pushChanges, pullSince, exportAll, TABLES } from './db.js';
+import { openDb, pushChanges, pullSince, exportAll, createBackupSnapshot, listBackups, isBackupName } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3128);
@@ -16,7 +16,9 @@ const PASSWORD = process.env.MYTIME_PASSWORD || 'mytime123';
 const TOKEN = crypto.createHmac('sha256', PASSWORD).update('mytime-token-v1').digest('hex');
 
 const app = Fastify({ logger: false, bodyLimit: 10 * 1024 * 1024 });
-const db = openDb(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
+const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const backupsDir = path.join(dataDir, 'backups');
+const db = openDb(dataDir);
 
 await app.register(cors, { origin: true });
 
@@ -61,6 +63,21 @@ app.post('/api/sync', async (req) => {
 
 // 服务端全量导出（备份用；客户端导入走同步接口）
 app.get('/api/export', async () => exportAll(db));
+
+// —— 服务端每日快照备份（客户端触发，保留最近 30 份） ——
+app.post('/api/backup', async () => ({ ok: true, ...createBackupSnapshot(db, backupsDir) }));
+
+app.get('/api/backup/list', async () => ({ backups: listBackups(backupsDir) }));
+
+app.get('/api/backup/file', async (req, reply) => {
+  const name = String(req.query?.name || '');
+  if (!isBackupName(name)) return reply.code(400).send({ error: 'invalid backup name' });
+  const file = path.join(backupsDir, name);
+  if (!fs.existsSync(file)) return reply.code(404).send({ error: 'backup not found' });
+  reply.header('Content-Type', 'application/json');
+  reply.header('Content-Disposition', `attachment; filename="${name}"`);
+  return fs.createReadStream(file);
+});
 
 await app.listen({ port: PORT, host: '0.0.0.0' });
 
