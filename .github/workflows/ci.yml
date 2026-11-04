@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 安装依赖
+        run: npm ci --prefix web
+      - name: 运行测试
+        run: npm --prefix web test
+
+  apk:
+    name: 构建安卓 APK
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: 安装依赖
+        run: |
+          npm ci --prefix web
+          npm ci --prefix app
+      - name: 构建前端
+        run: npm --prefix web run build
+      - name: 同步到安卓工程
+        run: npm --prefix app run sync
+      - name: Gradle 打包
+        run: |
+          chmod +x app/android/gradlew
+          cd app/android && ./gradlew assembleDebug --no-daemon
+      - name: 整理产物（按版本号命名）
+        run: |
+          VERSION=$(node -p "require('./web/package.json').version")
+          cp app/android/app/build/outputs/apk/debug/app-debug.apk "MyTime-v${VERSION}.apk"
+          echo "APK_NAME=MyTime-v${VERSION}.apk" >> "$GITHUB_ENV"
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: ${{ env.APK_NAME }}
+      - name: 发布到 Releases（打 v* 标签时）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK_NAME }}
+          generate_release_notes: true
