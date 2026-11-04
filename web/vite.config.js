@@ -14,6 +14,8 @@ export default defineConfig({
     Components({ resolvers: [VantResolver()] }),
     VitePWA({
       registerType: 'autoUpdate',
+      // SW 注册改由 main.js 手动控制（APK 内禁用、网页端启用），这里只负责生成 sw.js 与 manifest
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '柳比歇夫时间账本',
