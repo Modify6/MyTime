@@ -4,7 +4,17 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { showToast } from 'vant';
 import { getEventsBetween, getCategories, onChange } from '../db/repo.js';
 import { rangeFor, shiftCursor, fmtDur } from '../lib/time.js';
-import { byCategory, byTitle, totalMs, reportText, estimateCompare, estimateByCategory } from '../stats/aggregate.js';
+import {
+  byCategory,
+  byTitle,
+  totalMs,
+  reportText,
+  estimateCompare,
+  estimateByCategory,
+  heatmapData,
+} from '../stats/aggregate.js';
+import { getAllEvents } from '../db/repo.js';
+import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
 import { useCatalogStore } from '../stores/catalog.js';
@@ -15,16 +25,18 @@ const cursor = ref(Date.now());
 const events = ref([]);
 const prevEvents = ref([]);
 const categories = ref([]);
+const heatEvents = ref([]);
 const showReport = ref(false);
 
 let un;
 async function load() {
   const r = rangeFor(period.value, cursor.value);
   const pr = rangeFor(period.value, shiftCursor(period.value, cursor.value, -1));
-  [events.value, prevEvents.value, categories.value] = await Promise.all([
+  [events.value, prevEvents.value, categories.value, heatEvents.value] = await Promise.all([
     getEventsBetween(r.start, r.end),
     getEventsBetween(pr.start, pr.end),
     getCategories(),
+    getAllEvents(),
   ]);
 }
 onMounted(async () => {
@@ -70,6 +82,14 @@ const planByCat = computed(() => estimateByCategory(events.value));
 const planMax = computed(() =>
   Math.max(1, ...planByCat.value.flatMap((r) => [r.estMs, r.actMs]))
 );
+
+// 专注热力图（近半年，独立于当前时段）
+const heat = computed(() => heatmapData(heatEvents.value, { weeks: 24, end: Date.now() }));
+
+function jumpToDay(key) {
+  period.value = 'day';
+  cursor.value = dayjs(key).startOf('day').valueOf();
+}
 
 const pieOption = computed(() => ({
   tooltip: {
@@ -146,6 +166,29 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
           <div class="lab">较上期</div>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top: 0">
+        <span>专注热力图</span>
+        <span class="muted">近半年 · {{ heat.activeDays }} 天有记录 · 共 {{ fmtDur(heat.total) }}</span>
+      </div>
+      <div class="heat">
+        <div class="heat-labels">
+          <span v-for="(l, i) in ['一', '', '三', '', '五', '', '']" :key="i">{{ l }}</span>
+        </div>
+        <div class="heat-grid">
+          <button
+            v-for="c in heat.cells"
+            :key="c.key"
+            class="heat-cell"
+            :class="'lv' + c.level"
+            :title="c.ms != null ? c.key + ' · ' + fmtDur(c.ms) : ''"
+            @click="c.level >= 0 && jumpToDay(c.key)"
+          ></button>
+        </div>
+      </div>
+      <div class="muted" style="margin-top: 6px">颜色越深投入越多 · 点格子在下方查看那一天的明细</div>
     </div>
 
     <div v-if="planActual" class="card">
@@ -276,5 +319,52 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
   height: 8px;
   border-radius: 2px;
   margin-right: 4px;
+}
+.heat {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+.heat-labels {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 2px;
+  font-size: 9px;
+  line-height: 12px;
+  color: var(--text-3);
+  flex: none;
+  width: 12px;
+}
+.heat-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 2px;
+}
+.heat-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: #eef0f5;
+}
+.heat-cell.lv1 {
+  background: #cdd8fb;
+}
+.heat-cell.lv2 {
+  background: #9db4f8;
+}
+.heat-cell.lv3 {
+  background: #6d8ef9;
+}
+.heat-cell.lv4 {
+  background: #4f6ef7;
+}
+.heat-cell.lv-1 {
+  background: transparent;
+  cursor: default;
 }
 </style>

@@ -8,6 +8,7 @@ import {
   reportText,
   estimateCompare,
   estimateByCategory,
+  heatmapData,
 } from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
@@ -136,6 +137,41 @@ describe('计划 vs 实际', () => {
       categories: [{ id: 'work', name: '工作' }],
     });
     expect(text).toContain('预估 3小时 · 实际 2小时（偏差 -33%）');
+  });
+});
+
+describe('专注热力图', () => {
+  // 固定 end：2026-11-05（周四）12:00
+  const END = new Date(2026, 10, 5, 12, 0).getTime();
+  const at = (dayOffset, hour) => new Date(2026, 10, 5 + dayOffset, hour).getTime();
+  const events = [
+    ev('1', '写论文', 'work', at(0, 9), at(0, 11)), // 今天 2h → lv4
+    ev('2', '阅读', 'study', at(-1, 8), at(-1, 8) + 20 * 60_000), // 昨天 20分 → lv1
+    ev('3', '范围外旧事', 'work', at(-100, 9), at(-100, 10)), // 网格外，不影响统计
+  ];
+
+  it('两周矩阵：14 格、当天深色、未来空白、范围外不计', () => {
+    const r = heatmapData(events, { weeks: 2, end: END });
+    expect(r.cells).toHaveLength(14);
+    expect(r.cells.at(-1).level).toBe(-1); // 未来
+    expect(r.cells[10].level).toBe(4); // end 当天（周四=第 11 格）
+    expect(r.cells[9].level).toBe(1); // 昨天 20 分
+    expect(r.total).toBe(2 * HOUR + 20 * 60_000);
+    expect(r.activeDays).toBe(2);
+  });
+
+  it('levelOf 分档边界', () => {
+    const r = heatmapData(
+      [
+        ev('a', 'x', 'work', at(0, 0), at(0, 0) + 29 * 60_000),
+        ev('b', 'y', 'work', at(0, 0), at(0, 0) + 30 * 60_000),
+      ],
+      { weeks: 2, end: END }
+    );
+    // 同一天两段累计 59 分 → lv2（<1小时）
+    const today = r.cells[10];
+    expect(today.ms).toBe(59 * 60_000);
+    expect(today.level).toBe(2);
   });
 });
 

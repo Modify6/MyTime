@@ -65,6 +65,46 @@ export function estimateByCategory(events) {
     .sort((a, b) => b.actMs - a.actMs);
 }
 
+// 专注热力图：以 end 所在周收尾、weeks 周的逐日投入矩阵（列=周，行=周一~周日）
+// level 0-4 为投入档位；未来日期 level=-1（渲染为空白）
+function levelOf(ms) {
+  if (ms <= 0) return 0;
+  if (ms < 30 * 60_000) return 1;
+  if (ms < 3_600_000) return 2;
+  if (ms < 2 * 3_600_000) return 3;
+  return 4;
+}
+
+export function heatmapData(events, { weeks = 24, end = Date.now() } = {}) {
+  const endDay = dayjs(end).startOf('day');
+  const dow = (endDay.day() + 6) % 7; // 0=周一
+  const gridStart = endDay.subtract(dow + (weeks - 1) * 7, 'day');
+
+  const totals = new Map();
+  for (const e of events) {
+    const key = dayjs(e.startAt).format('YYYY-MM-DD');
+    totals.set(key, (totals.get(key) || 0) + dur(e));
+  }
+
+  const cells = [];
+  let total = 0;
+  let activeDays = 0;
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const day = gridStart.add(w * 7 + d, 'day');
+      const key = day.format('YYYY-MM-DD');
+      const future = day.isAfter(endDay, 'day');
+      const ms = future ? null : totals.get(key) || 0;
+      if (!future) {
+        total += ms;
+        if (ms > 0) activeDays += 1;
+      }
+      cells.push({ key, ms, level: future ? -1 : levelOf(ms) });
+    }
+  }
+  return { cells, total, activeDays, start: gridStart.valueOf(), end: endDay.valueOf() };
+}
+
 // 3900000 -> "1小时5分"；2700000 -> "45分钟"
 export function fmtDur(ms) {
   if (ms <= 0) return '0';
