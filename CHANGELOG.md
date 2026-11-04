@@ -2,6 +2,11 @@
 
 所有对外可感知的变化都记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.2] - 2026-11-05
+
+### 修复
+- **状态栏图标不可见**：edge-to-edge 下系统默认用白色状态栏图标，铺在浅色顶栏（#F5F6FA）上几乎看不见。主题声明 windowLightStatusBar=true，系统改用深色图标
+
 ## [0.2.1] - 2026-11-05
 
 ### 修复
