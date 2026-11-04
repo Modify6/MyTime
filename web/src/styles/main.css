@@ -1,0 +1,375 @@
+:root {
+  --brand: #4f6ef7;
+  --brand-2: #7c4dff;
+  --bg: #f5f6fa;
+  --card: #ffffff;
+  --text: #1c2333;
+  --text-2: #6b7280;
+  --text-3: #9aa3b2;
+  --line: #eef0f5;
+  --danger: #ee5a5a;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 14px 16px calc(70px + env(safe-area-inset-bottom));
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+
+.section-title {
+  font-size: 13px;
+  color: var(--text-3);
+  margin: 4px 2px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 10px;
+}
+
+.page-head h1 {
+  font-size: 20px;
+  margin: 0;
+  font-weight: 700;
+}
+
+/* 分类/目标小圆签 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  color: var(--c, var(--text-2));
+  background: color-mix(in srgb, var(--c, #90a4ae) 12%, transparent);
+}
+.chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c, var(--text-2));
+}
+
+/* 分类选择网格 */
+.cat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cat-grid .cat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cat-grid .cat-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.cat-grid .cat-item.active {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 10%, #fff);
+  color: var(--c);
+  font-weight: 600;
+}
+
+/* 日/周/月分段控件 */
+.seg {
+  display: flex;
+  background: #e9ecf4;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.seg button.active {
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.08);
+}
+
+/* 主打卡按钮 */
+.hero-btn {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  box-shadow: 0 12px 30px rgba(79, 110, 247, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 26px auto;
+}
+.hero-btn small {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  opacity: 0.85;
+}
+.hero-btn:active {
+  transform: scale(0.97);
+}
+
+/* 时间线事件条 */
+.ev-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.ev-item:last-child {
+  border-bottom: 0;
+}
+.ev-time {
+  width: 88px;
+  flex: none;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.ev-main {
+  flex: 1;
+  min-width: 0;
+}
+.ev-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ev-title .ev-dur {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: 12px;
+  margin-left: 6px;
+}
+.ev-chips {
+  margin-top: 3px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ev-note {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.sync-dot .led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c3c9d4;
+}
+.sync-dot.ok .led {
+  background: #34c273;
+}
+.sync-dot.error .led {
+  background: var(--danger);
+}
+.sync-dot.syncing .led {
+  background: #f5a623;
+  animation: blink 1s infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.muted {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.empty-tip {
+  text-align: center;
+  color: var(--text-3);
+  padding: 28px 0;
+  font-size: 13px;
+}
+
+.stat-grid {
+  display: flex;
+  gap: 10px;
+}
+.stat-grid .cell {
+  flex: 1;
+  text-align: center;
+}
+.stat-grid .num {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stat-grid .lab {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0;
+}
+.bar-row .name {
+  width: 72px;
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.bar-row .track {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: #f0f2f8;
+  overflow: hidden;
+}
+.bar-row .fill {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--c, var(--brand));
+  min-width: 2px;
+}
+.bar-row .val {
+  width: 64px;
+  flex: none;
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* ---------- 动画关键帧 ---------- */
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes popIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow: 0 12px 30px rgba(79, 110, 247, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 14px 44px rgba(79, 110, 247, 0.55),
+      0 0 0 16px rgba(79, 110, 247, 0.06);
+  }
+}
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

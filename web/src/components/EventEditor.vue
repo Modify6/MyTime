@@ -1,0 +1,170 @@
+<script setup>
+// 事件编辑/补录面板：编辑既有记录或手动补录过去的时段
+import { computed, ref, watch } from 'vue';
+import { showToast, showConfirmDialog } from 'vant';
+import { useCatalogStore } from '../stores/catalog.js';
+import { putRow, softDelete } from '../db/repo.js';
+import { uuid } from '../lib/util.js';
+import { toLocalInput, fromLocalInput } from '../lib/time.js';
+
+const props = defineProps({
+  show: Boolean,
+  event: { type: Object, default: null }, // null = 手动补录新事件
+});
+const emit = defineEmits(['update:show', 'saved']);
+
+const catalog = useCatalogStore();
+
+const form = ref(null);
+const running = computed(() => form.value && form.value.endAt == null);
+
+watch(
+  () => props.show,
+  (v) => {
+    if (!v) return;
+    if (props.event) {
+      form.value = { ...props.event };
+    } else {
+      const now = Date.now();
+      form.value = {
+        id: uuid(),
+        title: '',
+        categoryId: catalog.sortedCategories[0]?.id || '',
+        goalId: null,
+        startAt: now - 60 * 60 * 1000,
+        endAt: now,
+        note: '',
+        createdAt: now,
+      };
+    }
+  }
+);
+
+async function save() {
+  const f = form.value;
+  if (!f.categoryId) return showToast('请选择分类');
+  if (f.endAt != null && f.endAt < f.startAt) return showToast('结束时间不能早于开始时间');
+  await putRow('events', { ...f, title: (f.title || '').trim() || '未命名事项' });
+  showToast('已保存');
+  emit('update:show', false);
+  emit('saved');
+}
+
+async function stopNow() {
+  form.value = { ...form.value, endAt: Date.now() };
+  await save();
+}
+
+async function remove() {
+  await showConfirmDialog({ title: '删除这条记录？' });
+  await softDelete('events', form.value.id);
+  showToast('已删除');
+  emit('update:show', false);
+}
+</script>
+
+<template>
+  <van-popup
+    :show="show"
+    position="bottom"
+    round
+    :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }"
+    @update:show="(v) => emit('update:show', v)"
+  >
+    <div v-if="form" class="sheet">
+      <div class="sheet-title">{{ event ? '编辑记录' : '补录时段' }}</div>
+
+      <van-field v-model="form.title" placeholder="事项名称" clearable />
+
+      <div class="field-label">分类</div>
+      <div class="cat-grid">
+        <button
+          v-for="c in catalog.sortedCategories"
+          :key="c.id"
+          class="cat-item"
+          :class="{ active: form.categoryId === c.id }"
+          :style="{ '--c': c.color }"
+          @click="form.categoryId = c.id"
+        >
+          <i class="dot"></i>{{ c.name }}
+        </button>
+      </div>
+
+      <template v-if="catalog.activeGoals.length">
+        <div class="field-label">关联目标</div>
+        <div class="cat-grid">
+          <button
+            v-for="g in catalog.activeGoals"
+            :key="g.id"
+            class="cat-item"
+            :class="{ active: form.goalId === g.id }"
+            :style="{ '--c': g.color }"
+            @click="form.goalId = form.goalId === g.id ? null : g.id"
+          >
+            <i class="dot"></i>{{ g.name }}
+          </button>
+        </div>
+      </template>
+
+      <div class="field-label">开始时间</div>
+      <input class="dt-input" type="datetime-local" :value="toLocalInput(form.startAt)" @input="form.startAt = fromLocalInput($event.target.value)" />
+
+      <template v-if="!running">
+        <div class="field-label">结束时间</div>
+        <input class="dt-input" type="datetime-local" :value="toLocalInput(form.endAt)" @input="form.endAt = fromLocalInput($event.target.value)" />
+      </template>
+      <div v-else class="muted" style="margin-top: 10px">该事项正在计时中，结束时间由打卡决定。</div>
+
+      <div class="field-label">备注</div>
+      <van-field
+        v-model="form.note"
+        type="textarea"
+        rows="2"
+        autosize
+        placeholder="补充说明（做了什么、产出、感受…）"
+      />
+
+      <div class="btn-row">
+        <van-button v-if="event" plain type="danger" @click="remove">删除</van-button>
+        <van-button v-if="running" type="primary" @click="stopNow">结束计时</van-button>
+        <van-button type="primary" @click="save">保存</van-button>
+      </div>
+    </div>
+  </van-popup>
+</template>
+
+<style scoped>
+.sheet {
+  padding: 18px 16px 8px;
+  max-height: 76vh;
+  overflow-y: auto;
+}
+.sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.field-label {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: 14px 2px 8px;
+}
+.dt-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #fafbfd;
+  color: var(--text);
+  font-family: inherit;
+}
+.btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.btn-row .van-button {
+  flex: 1;
+}
+</style>
