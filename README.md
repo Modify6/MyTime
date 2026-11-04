@@ -1,5 +1,7 @@
 # MyTime · 柳比歇夫时间账本
 
+[![CI](https://github.com/Modify6/MyTime/actions/workflows/ci.yml/badge.svg)](https://github.com/Modify6/MyTime/actions/workflows/ci.yml)
+
 基于**柳比歇夫时间统计法**的个人时间管理 PWA：打卡记录每一件事的"纯时间"，自动分类统计，
 开始一件事前先看历史用时 —— 让统计反馈决策，逐步掌控自己的时间。
 
@@ -68,6 +70,9 @@ MYTIME_PASSWORD=你的密码 PORT=3128 npm start
 3. 把 `MyTime.apk` 传到安卓手机安装（允许"安装未知应用"）
 4. 首次打开：设置页填电脑局域网地址 + 密码即可同步；启动图标已定制（自适应渐变时钟）
 
+> **不想本地打包？** push 到 GitHub 后 CI 会自动构建 APK：常规 push 在 Actions Artifacts 里，
+> 打 `v*` 标签会自动发布到 [Releases](https://github.com/Modify6/MyTime/releases)（含自动发行说明），手机直接下载安装。
+>
 > 改了前端代码想更新 App？重新跑一遍 `apk.bat` 即可。
 > iPhone 无开发者账号时用 Safari「添加到主屏幕」方案（设置页有图文引导）。
 
