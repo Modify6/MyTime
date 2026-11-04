@@ -2,6 +2,12 @@
 
 所有对外可感知的变化都记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.1] - 2026-11-05
+
+### 修复
+- **安卓顶栏遮挡**：Android 15（targetSdk 35）强制 edge-to-edge，应用内容顶到状态栏底下。改为 `adjustMarginsForEdgeToEdge: "force"` 让 WebView 自动避让系统栏，状态栏区域底色统一为应用背景色
+- iOS PWA 顶部安全区：页面顶部补 `env(safe-area-inset-top)`，刘海屏不再遮挡标题
+
 ## [0.2.0] - 2026-11-05
 
 ### 新增

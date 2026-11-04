@@ -30,7 +30,8 @@ body {
 .page {
   max-width: 560px;
   margin: 0 auto;
-  padding: 14px 16px calc(70px + env(safe-area-inset-bottom));
+  /* 顶部安全区：iOS PWA 避让刘海/状态栏；安卓 APK 由 adjustMarginsForEdgeToEdge 处理 */
+  padding: calc(14px + env(safe-area-inset-top)) 16px calc(70px + env(safe-area-inset-bottom));
 }
 
 .card {

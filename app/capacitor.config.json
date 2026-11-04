@@ -4,5 +4,8 @@
   "webDir": "../web/dist",
   "server": {
     "cleartext": true
+  },
+  "android": {
+    "adjustMarginsForEdgeToEdge": "force"
   }
 }
