@@ -1,9 +1,9 @@
 name: CI
 
+# 不用 branches/tags 过滤（两者同时定义会让单独的标签推送不触发），
+# 触发后由任务级 if 按 ref 分流：master 推送出 Artifacts，v* 标签推送发 Release
 on:
   push:
-    branches: [master]
-    tags: ['v*']
     paths-ignore: ['**.md']
   workflow_dispatch:
 
@@ -13,6 +13,7 @@ permissions:
 jobs:
   test:
     name: 单元测试
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,7 @@ jobs:
   apk:
     name: 构建安卓 APK
     needs: test
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
