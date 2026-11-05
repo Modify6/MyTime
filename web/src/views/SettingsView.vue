@@ -11,11 +11,40 @@ import { uuid } from '../lib/util.js';
 import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
+import { isNativeApp, nativeReminder } from '../lib/native.js';
 import dayjs from 'dayjs';
 
 const auth = useAuthStore();
 const sync = useSyncStore();
 const catalog = useCatalogStore();
+
+// —— 每日提醒（仅 APK 内可用） ——
+const remindOn = ref(localStorage.getItem('mytime.remindOn') === '1');
+const remindTime = ref(localStorage.getItem('mytime.remindTime') || '09:00');
+
+function applyRemind(on, time) {
+  const rn = nativeReminder();
+  if (!rn) return;
+  const [h, m] = time.split(':').map(Number);
+  rn.setDaily({ hour: h, minute: m, enabled: on });
+}
+
+function toggleRemind(v) {
+  remindOn.value = v;
+  localStorage.setItem('mytime.remindOn', v ? '1' : '0');
+  applyRemind(v, remindTime.value);
+  showToast(v ? `每天 ${remindTime.value} 提醒你打卡` : '已关闭每日提醒');
+}
+
+function onRemindTime(e) {
+  const v = e.target.value || '09:00';
+  remindTime.value = v;
+  localStorage.setItem('mytime.remindTime', v);
+  if (remindOn.value) {
+    applyRemind(true, v);
+    showToast(`已改为每天 ${v} 提醒`);
+  }
+}
 
 const serverUrl = ref(auth.serverUrl);
 const password = ref('');
@@ -95,6 +124,32 @@ async function exportData() {
   showToast('已导出');
 }
 
+async function exportCsv() {
+  const rows = (await getAllEvents()).sort((a, b) => a.startAt - b.startAt);
+  await catalog.load();
+  const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [['开始时间', '结束时间', '时长(分钟)', '事项', '分类', '目标', '预估(分钟)', '备注'].join(',')];
+  for (const e of rows) {
+    lines.push([
+      dayjs(e.startAt).format('YYYY-MM-DD HH:mm:ss'),
+      e.endAt ? dayjs(e.endAt).format('YYYY-MM-DD HH:mm:ss') : '',
+      e.endAt ? Math.round((e.endAt - e.startAt) / 60000) : '',
+      esc(e.title),
+      esc(catalog.catName(e.categoryId)),
+      esc(e.goalId ? catalog.goalName(e.goalId) : ''),
+      e.estimateMs ? Math.round(e.estimateMs / 60000) : '',
+      esc(e.note),
+    ].join(','));
+  }
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mytime-events-${dayjs().format('YYYYMMDD-HHmmss')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('已导出 CSV');
+}
+
 const importing = ref(false);
 async function importData(ev) {
   const file = ev.target.files?.[0];
@@ -131,7 +186,6 @@ const statusLabel = computed(() => {
 });
 
 // —— 安装到手机 ——
-const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
 const isAndroid = /android/i.test(navigator.userAgent || '');
 
@@ -273,6 +327,20 @@ onUnmounted(() => clearInterval(logTimer));
       </template>
     </div>
 
+    <!-- 每日提醒（仅 APK 内可用） -->
+    <div class="card" v-if="isNativeApp">
+      <div class="section-title" style="margin-top: 0">每日提醒</div>
+      <div class="backup-line">
+        <span>到点提醒我记录</span>
+        <van-switch :model-value="remindOn" size="20px" @update:model-value="toggleRemind" />
+      </div>
+      <div class="backup-line" v-if="remindOn">
+        <span>提醒时间</span>
+        <input type="time" class="time-input" :value="remindTime" @change="onRemindTime" />
+      </div>
+      <div class="muted">到点后弹通知提醒（误差几分钟内属正常）。</div>
+    </div>
+
     <!-- 安装到手机 -->
     <div class="card">
       <div class="section-title" style="margin-top: 0">安装到手机</div>
@@ -324,6 +392,7 @@ onUnmounted(() => clearInterval(logTimer));
       <div class="section-title" style="margin-top: 0">数据备份</div>
       <div class="btn-row">
         <van-button round block plain type="primary" @click="exportData">导出 JSON</van-button>
+        <van-button round block plain @click="exportCsv">导出 CSV</van-button>
         <van-button round block plain :loading="importing" @click="$refs.file.click()">导入 JSON</van-button>
         <input ref="file" type="file" accept="application/json,.json" style="display: none" @change="importData" />
       </div>
@@ -483,7 +552,7 @@ onUnmounted(() => clearInterval(logTimer));
 }
 .color-dot.active {
   border-color: var(--text);
-  box-shadow: 0 0 0 2px #fff inset;
+  box-shadow: 0 0 0 2px var(--card) inset;
 }
 .van-button {
   margin-top: 16px;
@@ -494,7 +563,7 @@ onUnmounted(() => clearInterval(logTimer));
 .log-list {
   max-height: 240px;
   overflow-y: auto;
-  background: #fafbfd;
+  background: var(--card-2);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -511,6 +580,15 @@ onUnmounted(() => clearInterval(logTimer));
 .log-line.warn {
   color: #d48806;
 }
+.time-input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
 .backup-line {
   display: flex;
   justify-content: space-between;
@@ -522,7 +600,7 @@ onUnmounted(() => clearInterval(logTimer));
   margin-top: 8px;
   max-height: 150px;
   overflow-y: auto;
-  background: #fafbfd;
+  background: var(--card-2);
   border-radius: 8px;
   padding: 4px 10px;
 }
