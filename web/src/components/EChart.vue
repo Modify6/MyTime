@@ -16,7 +16,7 @@ let disposed = false;
 
 onMounted(async () => {
   try {
-    const [{ PieChart, BarChart }, { TooltipComponent, GridComponent, LegendComponent }, { CanvasRenderer }, core] =
+    const [{ PieChart, BarChart, LineChart }, { TooltipComponent, GridComponent, LegendComponent }, { CanvasRenderer }, core] =
       await Promise.all([
         import('echarts/charts'),
         import('echarts/components'),
@@ -24,7 +24,7 @@ onMounted(async () => {
         import('echarts/core'),
       ]);
     if (disposed || !el.value) return;
-    core.use([PieChart, BarChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer]);
+    core.use([PieChart, BarChart, LineChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer]);
     chart = core.init(el.value);
     chart.setOption(props.option);
     ro = new ResizeObserver(() => chart && chart.resize());

@@ -75,6 +75,22 @@ function levelOf(ms) {
   return 4;
 }
 
+// 近 days 天逐日投入序列（空档为 0，旧→新），用于目标趋势折线
+export function dailySeries(events, { days = 30, end = Date.now() } = {}) {
+  const totals = new Map();
+  for (const e of events) {
+    const key = dayjs(e.startAt).format('YYYY-MM-DD');
+    totals.set(key, (totals.get(key) || 0) + dur(e));
+  }
+  const endDay = dayjs(end).startOf('day');
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const key = endDay.subtract(i, 'day').format('YYYY-MM-DD');
+    out.push({ date: key, ms: totals.get(key) || 0 });
+  }
+  return out;
+}
+
 export function heatmapData(events, { weeks = 24, end = Date.now() } = {}) {
   const endDay = dayjs(end).startOf('day');
   const dow = (endDay.day() + 6) % 7; // 0=周一

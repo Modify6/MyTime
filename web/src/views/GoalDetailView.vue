@@ -5,8 +5,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { showToast, showConfirmDialog } from 'vant';
 import { getAllEvents, onChange, putRow } from '../db/repo.js';
 import { useCatalogStore } from '../stores/catalog.js';
-import { totalMs, fmtDur } from '../stats/aggregate.js';
+import { totalMs, fmtDur, dailySeries } from '../stats/aggregate.js';
 import EventItem from '../components/EventItem.vue';
+import EChart from '../components/EChart.vue';
 import EventEditor from '../components/EventEditor.vue';
 import GoalForm from '../components/GoalForm.vue';
 
@@ -37,6 +38,35 @@ const avg = computed(() => (count.value ? Math.round(ms.value / count.value) : 0
 const progress = computed(() =>
   goal.value?.targetHours ? Math.min(100, (ms.value / (goal.value.targetHours * 3600000)) * 100) : null
 );
+
+// 近 30 天逐日投入趋势
+const trend = computed(() => dailySeries(allEvents.value.filter((e) => e.goalId === route.params.id), { days: 30 }));
+const trendOption = computed(() => ({
+  grid: { left: 6, right: 6, top: 14, bottom: 4, containLabel: true },
+  xAxis: {
+    type: 'category',
+    data: trend.value.map((p) => p.date.slice(5)),
+    axisLabel: { fontSize: 9, color: '#9aa3b2', interval: 6 },
+    axisLine: { lineStyle: { color: 'rgba(150,150,150,0.3)' } },
+  },
+  yAxis: {
+    type: 'value',
+    axisLabel: { fontSize: 9, color: '#9aa3b2', formatter: (m) => (m >= 60 ? Math.round(m / 60) + 'h' : m + 'm') },
+    splitLine: { lineStyle: { color: 'rgba(150,150,150,0.15)' } },
+  },
+  tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+  series: [
+    {
+      type: 'line',
+      smooth: true,
+      symbol: 'none',
+      data: trend.value.map((p) => Math.round(p.ms / 60000)),
+      itemStyle: { color: goal.value?.color || '#4f6ef7' },
+      lineStyle: { width: 2 },
+      areaStyle: { opacity: 0.15 },
+    },
+  ],
+}));
 
 function openEdit(ev) {
   editing.value = ev;
@@ -90,6 +120,11 @@ async function removeGoal() {
       </div>
     </div>
 
+        <div class="card">
+      <div class="section-title" style="margin-top: 0">近 30 天投入</div>
+      <EChart :option="trendOption" height="150px" />
+    </div>
+
     <div class="section-title"><span>关联事件</span></div>
     <div class="card">
       <template v-if="events.length">
@@ -130,7 +165,7 @@ async function removeGoal() {
 .track {
   height: 8px;
   border-radius: 4px;
-  background: #f0f2f8;
+  background: var(--track);
   overflow: hidden;
 }
 .track .fill {
