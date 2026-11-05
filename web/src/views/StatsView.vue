@@ -21,6 +21,9 @@ import { useCatalogStore } from '../stores/catalog.js';
 
 const catalog = useCatalogStore();
 const period = ref('day'); // day | week | month
+// 深色模式跟随系统（饼图描边/标签颜色随之切换）
+const isDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches || false);
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', (e) => (isDark.value = e.matches));
 const cursor = ref(Date.now());
 const events = ref([]);
 const prevEvents = ref([]);
@@ -101,8 +104,8 @@ const pieOption = computed(() => ({
       type: 'pie',
       radius: ['48%', '72%'],
       center: ['50%', '50%'],
-      itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
-      label: { show: true, formatter: '{b}', fontSize: 11, color: '#6b7280' },
+      itemStyle: { borderColor: isDark.value ? '#171c26' : '#ffffff', borderWidth: 2, borderRadius: 4 },
+      label: { show: true, formatter: '{b}', fontSize: 11, color: isDark.value ? '#a3adbd' : '#6b7280' },
       data: catTotals.value.map((t) => ({
         name: categories.value.find((c) => c.id === t.categoryId)?.name || '未分类',
         value: Math.round(t.ms / 60000),
@@ -216,7 +219,7 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
         <span class="val">{{ fmtDur(r.actMs) }}</span>
       </div>
       <div class="pa-legend">
-        <span><i class="swatch" style="background: #c3c9d4"></i>预估</span>
+        <span><i class="swatch" style="background: var(--est-bar)"></i>预估</span>
         <span><i class="swatch" style="background: var(--brand)"></i>实际</span>
       </div>
     </div>
@@ -285,7 +288,7 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
 .pa-bars .track {
   height: 7px;
   border-radius: 4px;
-  background: #f0f2f8;
+  background: var(--track);
   overflow: hidden;
 }
 .pa-bars .fill {
@@ -294,7 +297,7 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
   min-width: 2px;
 }
 .pa-bars .fill.est {
-  background: #c3c9d4;
+  background: var(--est-bar);
 }
 .pa-bars .fill.act {
   background: var(--c, var(--brand));
@@ -349,7 +352,7 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
   border: 0;
   padding: 0;
   cursor: pointer;
-  background: #eef0f5;
+  background: var(--heat-empty);
 }
 .heat-cell.lv1 {
   background: #cdd8fb;

@@ -16,6 +16,14 @@ if (typeof window !== 'undefined' && window.Capacitor) {
   import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true }));
 }
 
+// 深色模式跟随系统：页面配色走 CSS 变量，Vant 用根类 van-theme-dark 切换
+const applyTheme = () => {
+  const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  document.documentElement.classList.toggle('van-theme-dark', !!dark);
+};
+applyTheme();
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', applyTheme);
+
 initLogger();
 
 const app = createApp(App);

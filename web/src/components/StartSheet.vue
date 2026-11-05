@@ -214,7 +214,7 @@ async function start() {
   width: 116px;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
-  background: color-mix(in srgb, var(--c) 9%, #fff);
+  background: color-mix(in srgb, var(--c) 9%, var(--card));
   padding: 10px 12px 8px;
   display: flex;
   flex-direction: column;
@@ -274,7 +274,7 @@ async function start() {
 .sug {
   flex: none;
   border: 1px solid var(--line);
-  background: #f7f8fc;
+  background: var(--card-3);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 12px;
@@ -285,7 +285,7 @@ async function start() {
   margin: 12px 2px 2px;
   padding: 9px 12px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--brand) 7%, #fff);
+  background: color-mix(in srgb, var(--brand) 10%, var(--card));
   color: var(--brand);
   font-size: 12.5px;
 }

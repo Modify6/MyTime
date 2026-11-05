@@ -216,7 +216,7 @@ async function remove() {
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 14px;
-  background: #fafbfd;
+  background: var(--card-2);
   color: var(--text);
   font-family: inherit;
 }

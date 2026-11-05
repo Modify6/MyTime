@@ -52,7 +52,7 @@ function short(t) {
 }
 .orbit-btn {
   border: 1.5px solid color-mix(in srgb, var(--c) 45%, transparent);
-  background: color-mix(in srgb, var(--c) 12%, #fff);
+  background: color-mix(in srgb, var(--c) 12%, var(--card));
   box-shadow: 0 4px 14px rgba(20, 30, 60, 0.1);
   width: 62px;
   height: 62px;

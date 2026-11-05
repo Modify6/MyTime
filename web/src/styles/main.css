@@ -3,12 +3,38 @@
   --brand-2: #7c4dff;
   --bg: #f5f6fa;
   --card: #ffffff;
+  --card-2: #fafbfd; /* 输入框/日志/列表底 */
+  --card-3: #f7f8fc; /* 次级底（建议 chips） */
+  --track: #f0f2f8; /* 进度条/条形底 */
+  --seg-bg: #e9ecf4;
+  --seg-active: #ffffff;
+  --line: #eef0f5;
+  --heat-empty: #eef0f5;
+  --est-bar: #c3c9d4; /* 预估条/未连接指示 */
   --text: #1c2333;
   --text-2: #6b7280;
   --text-3: #9aa3b2;
-  --line: #eef0f5;
   --danger: #ee5a5a;
   --radius: 14px;
+}
+
+/* 深色模式：跟随系统，配 Vant 根类 van-theme-dark（main.js 同步） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --card: #171c26;
+    --card-2: #1b212d;
+    --card-3: #1d2430;
+    --track: #262d3a;
+    --seg-bg: #232a37;
+    --seg-active: #171c26;
+    --line: #252b38;
+    --heat-empty: #20262f;
+    --est-bar: #3a4356;
+    --text: #e8ecf3;
+    --text-2: #a3adbd;
+    --text-3: #6b7280;
+  }
 }
 
 * {
@@ -97,7 +123,7 @@ body {
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--card);
   font-size: 13px;
   cursor: pointer;
 }
@@ -109,7 +135,7 @@ body {
 }
 .cat-grid .cat-item.active {
   border-color: var(--c);
-  background: color-mix(in srgb, var(--c) 10%, #fff);
+  background: color-mix(in srgb, var(--c) 10%, var(--card));
   color: var(--c);
   font-weight: 600;
 }
@@ -117,7 +143,7 @@ body {
 /* 日/周/月分段控件 */
 .seg {
   display: flex;
-  background: #e9ecf4;
+  background: var(--seg-bg);
   border-radius: 10px;
   padding: 3px;
   gap: 3px;
@@ -133,7 +159,7 @@ body {
   cursor: pointer;
 }
 .seg button.active {
-  background: #fff;
+  background: var(--seg-active);
   color: var(--text);
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(20, 30, 60, 0.08);
@@ -233,7 +259,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #c3c9d4;
+  background: var(--est-bar);
 }
 .sync-dot.ok .led {
   background: #34c273;
@@ -302,7 +328,7 @@ body {
   flex: 1;
   height: 12px;
   border-radius: 6px;
-  background: #f0f2f8;
+  background: var(--track);
   overflow: hidden;
 }
 .bar-row .fill {

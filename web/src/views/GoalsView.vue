@@ -131,7 +131,7 @@ function add() {
   margin-top: 12px;
   height: 8px;
   border-radius: 4px;
-  background: #f0f2f8;
+  background: var(--track);
   overflow: hidden;
 }
 .track .fill {
