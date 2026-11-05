@@ -17,3 +17,7 @@ MyTime.apk
 .zcode/
 
 .apk-version
+
+# 诊断临时文件
+.net-raw.txt
+.net-hit.txt
