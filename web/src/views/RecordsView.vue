@@ -113,7 +113,7 @@ function addRecord() {
       <div class="empty-tip">{{ monthLabel }} 暂无记录</div>
     </div>
 
-    <van-popup v-model:show="axisDayShow" position="bottom" round :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
+    <van-popup v-model:show="axisDayShow" position="bottom" round class="popup-safe">
       <div class="axis-sheet" v-if="axisDay">
         <div class="axis-title">{{ fmtDayLabel(axisDay) }} · 24 小时时间轴</div>
         <div class="axis-hours"><span v-for="h in [0, 6, 12, 18, 24]" :key="h">{{ h }}</span></div>

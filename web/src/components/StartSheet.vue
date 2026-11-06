@@ -99,7 +99,7 @@ async function start() {
     :show="show"
     position="bottom"
     round
-    :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }"
+    class="popup-safe"
     @update:show="(v) => emit('update:show', v)"
   >
     <div class="sheet">

@@ -18,6 +18,10 @@
   --radius: 14px;
 }
 
+:root {
+  --safe-bottom: 0px; /* APK 由原生注入手势条/导航栏高度（env 在 WebView 内恒为 0） */
+}
+
 /* 深色模式：跟随系统，配 Vant 根类 van-theme-dark（main.js 同步） */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -57,7 +61,8 @@ body {
   max-width: 560px;
   margin: 0 auto;
   /* 顶部安全区：iOS PWA 避让刘海/状态栏；安卓 APK 由 adjustMarginsForEdgeToEdge 处理 */
-  padding: calc(14px + env(safe-area-inset-top)) 16px calc(70px + env(safe-area-inset-bottom));
+  padding: calc(14px + env(safe-area-inset-top)) 16px
+    calc(70px + env(safe-area-inset-bottom, 0px) + var(--safe-bottom));
 }
 
 .card {
@@ -399,4 +404,13 @@ body {
     opacity: 1;
     transform: none;
   }
+}
+
+/* 底部弹层统一安全区（env 兜底 iOS PWA，--safe-bottom 兜底 APK） */
+.popup-safe {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--safe-bottom));
+}
+
+.van-tabbar {
+  padding-bottom: var(--safe-bottom);
 }

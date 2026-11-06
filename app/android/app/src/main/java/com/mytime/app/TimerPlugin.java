@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -41,6 +42,31 @@ public class TimerPlugin extends Plugin {
         intent.putExtra("startAt", startAt);
         ContextCompat.startForegroundService(getContext(), intent);
         call.resolve();
+    }
+
+    /** 原生读取系统栏底部高度（dp），注入 CSS 变量供弹层/页面避让手势条 */
+    @PluginMethod
+    public void getSafeArea(PluginCall call) {
+        getBridge().getActivity().runOnUiThread(() -> {
+            try {
+                android.view.View decor = getBridge().getWebView().getRootView();
+                android.view.WindowInsets insets = decor.getRootWindowInsets();
+                int bottom = 0;
+                if (insets != null) {
+                    if (Build.VERSION.SDK_INT >= 30) {
+                        bottom = insets.getInsets(android.view.WindowInsets.Type.systemBars()).bottom;
+                    } else {
+                        bottom = insets.getSystemWindowInsetBottom();
+                    }
+                }
+                float density = getContext().getResources().getDisplayMetrics().density;
+                JSObject r = new JSObject();
+                r.put("bottom", Math.max(0, Math.round(bottom / density)));
+                call.resolve(r);
+            } catch (Exception e) {
+                call.resolve(new JSObject());
+            }
+        });
     }
 
     /**

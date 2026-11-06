@@ -452,7 +452,7 @@ onUnmounted(() => clearInterval(logTimer));
       :show="showCatForm"
       position="bottom"
       round
-      :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }"
+      class="popup-safe"
       @update:show="(v) => (showCatForm = v)"
     >
       <div class="sheet">

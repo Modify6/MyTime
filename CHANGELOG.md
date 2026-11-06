@@ -2,6 +2,11 @@
 
 所有对外可感知的变化都记录在此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.7.1] - 2026-11-07
+
+### 修复
+- **底部弹层按钮贴到屏幕边缘**：APK 内 env(safe-area-inset-bottom) 恒为 0，编辑记录等底部弹层的按钮被手势条遮挡。新增原生 getSafeArea 读取真实系统栏高度注入 CSS 变量 --safe-bottom，五个底部弹层、页面底部与 Tabbar 统一避让
+
 ## [0.7.0] - 2026-11-06
 
 ### 新增
