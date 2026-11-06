@@ -47,5 +47,9 @@ export default defineConfig({
   },
   build: { chunkSizeWarningLimit: 1500 },
   define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
-  test: { environment: 'node' },
+  test: {
+    environment: 'node',
+    // 单测只收 tests/ 目录；e2e/*.spec.js 归 Playwright（混入会被 vitest 加载并报 describe 冲突）
+    include: ['tests/**/*.test.js'],
+  },
 });
