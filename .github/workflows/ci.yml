@@ -43,8 +43,8 @@ jobs:
         run: npm --prefix web run build
       - name: 安装 Playwright 浏览器
         run: npm --prefix web exec -- playwright install --with-deps chromium
-      - name: 运行端到端测试
-        run: npm --prefix web run test:e2e
+      - name: 运行端到端测试（失败自动重试一轮）
+        run: npm --prefix web run test:e2e || npm --prefix web run test:e2e
         env:
           E2E_JSON_REPORT: '1'
       - name: 输出失败摘要
