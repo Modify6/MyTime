@@ -105,7 +105,8 @@ git push -u origin master
 
 - 标题：`类型(范围): 摘要`，类型用 `feat / fix / refactor / chore / docs / test`
 - 正文：写清动机、改动点与影响面，让人不看 diff 也能明白为什么改
-- 每次发版：更新 `CHANGELOG.md` + bump `web/package.json` 版本 + 打 `v*` 标签，三者缺一不可
+- 每次发版：双击 `release.bat`（或 `node scripts/release.mjs patch|minor|major`）——自动完成 单元测试 → 版本贯通 → CHANGELOG 从提交记录生成 → 构建 → 提交 → 标签 → 推送；CI 随后自动构建 APK 挂到 Releases
+- 提交前钩子强制跑单测，坏代码进不了仓库（首次 clone 后执行 `git config core.hooksPath .githooks` 启用）
 
 ## 公网部署（异地访问）
 
