@@ -91,6 +91,25 @@ export function dailySeries(events, { days = 30, end = Date.now() } = {}) {
   return out;
 }
 
+// 单日 24 小时时间轴：把重叠事件分配到互不重叠的泳道（贪心）
+export function layoutDayLanes(events) {
+  const segs = events
+    .filter((e) => e.endAt != null)
+    .map((e) => ({ event: e, start: e.startAt, end: e.endAt }))
+    .sort((a, b) => a.start - b.start);
+  const lanes = [];
+  for (const s of segs) {
+    let lane = lanes.find((l) => s.start >= l.end);
+    if (!lane) {
+      lane = { end: 0, items: [] };
+      lanes.push(lane);
+    }
+    lane.items.push(s);
+    lane.end = s.end;
+  }
+  return lanes.map((l) => l.items);
+}
+
 export function heatmapData(events, { weeks = 24, end = Date.now() } = {}) {
   const endDay = dayjs(end).startOf('day');
   const dow = (endDay.day() + 6) % 7; // 0=周一
