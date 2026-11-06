@@ -1,0 +1,4 @@
+#!/bin/sh
+# pre-commit：提交前强制跑单元测试，失败则阻断提交
+echo "[pre-commit] 运行单元测试..."
+npm --prefix web test
