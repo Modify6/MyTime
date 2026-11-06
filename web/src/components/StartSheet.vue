@@ -45,14 +45,17 @@ watch(title, (t) => {
 
 watch(
   () => props.show,
-  async (v) => {
+  (v) => {
     if (!v) return;
-    allEvents.value = await getAllEvents();
+    // 同步重置表单；历史数据异步补充（不重置表单，避免清掉用户已输入内容）
     title.value = '';
     goalId.value = null;
     estimateMin.value = null;
     estimateTouched.value = false;
     categoryId.value = catalog.sortedCategories[0]?.id || '';
+    getAllEvents().then((evs) => {
+      allEvents.value = evs;
+    });
   }
 );
 

@@ -15,3 +15,6 @@ db.version(1).stores({
 db.version(2).stores({
   logs: '++seq, time',
 });
+
+// 临时调试钩子（E2E 排查用）
+if (typeof window !== 'undefined') window.__mytimeDebug = { db };
