@@ -1,8 +1,27 @@
 import { defineStore } from 'pinia';
-import { getRunningEvents, putRow, onChange } from '../db/repo.js';
+import dayjs from 'dayjs';
+import { getRunningEvents, getEventsBetween, putRow, onChange } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
 import { nativeTimer, isNative } from '../lib/native.js';
 import { logInfo, logError } from '../lib/logger.js';
+
+// 状态快照推送到原生（小组件/磁贴渲染数据源）
+async function pushWidgetState(running) {
+  const nt = nativeTimer();
+  if (!nt?.syncWidgetState) return;
+  try {
+    const { start, end } = { start: dayjs().startOf('day').valueOf(), end: dayjs().endOf('day').valueOf() };
+    const evs = await getEventsBetween(start, end);
+    nt.syncWidgetState({
+      todayMs: evs.reduce((s, e) => s + Math.max(0, (e.endAt ?? Date.now()) - e.startAt), 0),
+      runningTitle: running?.title || '',
+      runningStartAt: running?.startAt || 0,
+      date: dayjs().format('YYYY-MM-DD'),
+    });
+  } catch {
+    // 小组件刷新失败不影响主流程
+  }
+}
 
 // 计时器：同一时刻只允许一个进行中的事件（柳比歇夫"纯时间"串行记录）
 // 进行中事件也参与同步 —— 手机上开始、电脑上结束天然可用
@@ -17,6 +36,7 @@ export const useTimerStore = defineStore('timer', {
     async refresh() {
       this.running = (await getRunningEvents()).sort((a, b) => b.startAt - a.startAt);
       this._ensureTick();
+      if (isNative) await pushWidgetState(this.running[0]);
     },
     // 订阅仓库变更（本地写入或同步拉取后自动刷新），返回取消函数
     watch() {

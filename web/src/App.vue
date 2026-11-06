@@ -7,6 +7,8 @@ import { useSyncStore } from './stores/sync.js';
 import { isLoggedIn } from './auth/local.js';
 import { isNative, nativeTimer } from './lib/native.js';
 import { fmtDur } from './lib/time.js';
+import { getAllEvents, ensureSeed } from './db/repo.js';
+import { uuid } from './lib/util.js';
 
 const timer = useTimerStore();
 const catalog = useCatalogStore();
@@ -16,6 +18,7 @@ let unwatch;
 onMounted(async () => {
   unwatch = timer.watch();
   catalog.watch();
+  await ensureSeed();
   await Promise.all([timer.refresh(), catalog.load()]);
   if (isLoggedIn()) sync.setup();
   // 原生 App：通知栏"结束打卡"按钮 → 正常落账
@@ -24,9 +27,34 @@ onMounted(async () => {
       const ev = await timer.stopCurrent();
       if (ev) showToast(`已记录 ${fmtDur(ev.endAt - ev.startAt)}`);
     });
+    // 桌面小组件/快捷磁贴的深链动作
+    const AppPlugin = window.Capacitor?.Plugins?.App;
+    AppPlugin?.addListener?.('appUrlOpen', async (data) => {
+      const url = data?.url || '';
+      if (url.includes('widget/stop')) {
+        const ev = await timer.stopCurrent();
+        if (ev) showToast(`已记录 ${fmtDur(ev.endAt - ev.startAt)}`);
+      } else if (url.includes('widget/start')) {
+        await startLastFromWidget();
+      }
+    });
   }
 });
 onUnmounted(() => unwatch?.());
+
+// 小组件「开始」：以最近一次已完成的事项为模板（事项/分类/目标继承）
+async function startLastFromWidget() {
+  if (timer.running.length) return showToast('已有进行中的计时');
+  const rows = (await getAllEvents()).sort((a, b) => b.startAt - a.startAt);
+  const last = rows.find((e) => e.endAt != null);
+  if (!last) return showToast('还没有历史事项，先在 App 里打卡一次');
+  try {
+    await timer.start({ title: last.title, categoryId: last.categoryId, goalId: last.goalId });
+    showToast(`已开始：${last.title}`);
+  } catch (e) {
+    showToast(e.message || '开始失败');
+  }
+}
 </script>
 
 <template>

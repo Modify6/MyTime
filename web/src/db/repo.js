@@ -85,3 +85,33 @@ export async function getMeta(key, fallback = null) {
 export async function setMeta(key, value) {
   await db.meta.put({ key, value });
 }
+
+// 首次启动播种默认分类（与服务器同 id，连接同步后会被服务端版本一致化）
+const DEFAULT_CATEGORIES = [
+  ['cat-sleep', '睡眠', '#7C4DFF'],
+  ['cat-meal', '餐饮', '#FF7043'],
+  ['cat-work', '工作', '#1E88E5'],
+  ['cat-study', '学习', '#43A047'],
+  ['cat-sport', '运动', '#00ACC1'],
+  ['cat-commute', '通勤', '#8D6E63'],
+  ['cat-fun', '娱乐', '#EC407A'],
+  ['cat-chores', '家务', '#F0A800'],
+  ['cat-other', '其他', '#90A4AE'],
+];
+
+export async function ensureSeed() {
+  const n = await db.categories.count();
+  if (n > 0) return;
+  const now = Date.now();
+  await db.categories.bulkPut(
+    DEFAULT_CATEGORIES.map(([id, name, color], i) => ({
+      id,
+      name,
+      color,
+      sort: i,
+      createdAt: now,
+      updatedAt: now,
+      deleted: 0,
+    }))
+  );
+}

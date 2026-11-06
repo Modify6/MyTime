@@ -105,6 +105,20 @@ git push -u origin master
 - 正文：写清动机、改动点与影响面，让人不看 diff 也能明白为什么改
 - 每次发版：更新 `CHANGELOG.md` + bump `web/package.json` 版本 + 打 `v*` 标签，三者缺一不可
 
+## 公网部署（异地访问）
+
+局域网之外（4G/在外办公）也想同步？把 `server/` 部署到任意 VPS：
+
+1. 服务器装 Node 22+，`git clone` 后 `npm install --prefix server && npm run build`
+2. 用 Caddy 反代 3128 端口并自动签 HTTPS（修改 `MYTIME_PASSWORD` 为强密码）：
+   ```
+   mytime.example.com {
+       reverse_proxy localhost:3128
+   }
+   ```
+3. 手机/电脑的设置页服务器地址改为 `https://mytime.example.com` 即可异地同步
+4. 务必：强密码、`server/data/` 定期备份（应用内自动快照也在服务器侧）
+
 ## 目录结构
 
 ```
