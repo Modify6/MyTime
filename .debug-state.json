@@ -29,69 +29,69 @@
   ],
   "logs": [
    {
-    "action": "start",
-    "reason": null
-   },
-   {
     "action": "pause",
     "reason": "先处理其他事"
-   },
-   {
-    "action": "resume",
-    "reason": null
-   },
-   {
-    "action": "start",
-    "reason": null
-   },
-   {
-    "action": "create",
-    "reason": null
-   },
-   {
-    "action": "pause",
-    "reason": "临时插入更紧急的事"
-   },
-   {
-    "action": "done",
-    "reason": "按计划完成"
-   },
-   {
-    "action": "pause",
-    "reason": "被他人打断"
-   },
-   {
-    "action": "create",
-    "reason": null
    },
    {
     "action": "done",
     "reason": "当前计划不再继续"
    },
    {
+    "action": "start",
+    "reason": null
+   },
+   {
     "action": "resume",
     "reason": null
+   },
+   {
+    "action": "create",
+    "reason": null
+   },
+   {
+    "action": "resume",
+    "reason": null
+   },
+   {
+    "action": "done",
+    "reason": "按计划完成"
+   },
+   {
+    "action": "start",
+    "reason": null
+   },
+   {
+    "action": "create",
+    "reason": null
+   },
+   {
+    "action": "pause",
+    "reason": "被他人打断"
+   },
+   {
+    "action": "pause",
+    "reason": "临时插入更紧急的事"
    }
   ],
   "events": [
    {
-    "title": "预排任务A",
-    "planId": "2e1a0528",
-    "endAt": true
-   },
-   {
-    "title": "预排任务A",
-    "planId": "2e1a0528",
-    "endAt": true
-   },
-   {
     "title": "临时任务B",
-    "planId": "bd8cdcd5",
+    "planId": "8b40bf04",
     "endAt": true
    },
    {
     "title": "预排任务A",
-    "planId": "2e1a0528",
+    "planId": "7ddf34a2",
+    "endAt": true
+   },
+   {
+    "title": "预排任务A",
+    "planId": "7ddf34a2",
+    "endAt": true
+   },
+   {
+    "title": "预排任务A",
+    "planId": "7ddf34a2",
     "endAt": true
    }
   ]
