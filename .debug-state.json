@@ -29,8 +29,20 @@
   ],
   "logs": [
    {
-    "action": "done",
-    "reason": "当前计划不再继续"
+    "action": "start",
+    "reason": null
+   },
+   {
+    "action": "pause",
+    "reason": "先处理其他事"
+   },
+   {
+    "action": "resume",
+    "reason": null
+   },
+   {
+    "action": "start",
+    "reason": null
    },
    {
     "action": "create",
@@ -49,24 +61,12 @@
     "reason": "被他人打断"
    },
    {
-    "action": "resume",
-    "reason": null
-   },
-   {
-    "action": "pause",
-    "reason": "先处理其他事"
-   },
-   {
-    "action": "start",
-    "reason": null
-   },
-   {
     "action": "create",
     "reason": null
    },
    {
-    "action": "start",
-    "reason": null
+    "action": "done",
+    "reason": "当前计划不再继续"
    },
    {
     "action": "resume",
@@ -76,22 +76,22 @@
   "events": [
    {
     "title": "预排任务A",
-    "planId": "9bc1c6a3",
+    "planId": "2e1a0528",
     "endAt": true
    },
    {
     "title": "预排任务A",
-    "planId": "9bc1c6a3",
-    "endAt": true
-   },
-   {
-    "title": "预排任务A",
-    "planId": "9bc1c6a3",
+    "planId": "2e1a0528",
     "endAt": true
    },
    {
     "title": "临时任务B",
-    "planId": "c8648a4d",
+    "planId": "bd8cdcd5",
+    "endAt": true
+   },
+   {
+    "title": "预排任务A",
+    "planId": "2e1a0528",
     "endAt": true
    }
   ]
