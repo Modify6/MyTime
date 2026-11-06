@@ -7,9 +7,9 @@ const walk = (s) => {
   (s.specs || []).forEach((sp) => {
     (sp.tests || []).forEach((t) => {
       if (t.ok === false || t.expectedStatus !== t.status) {
-        console.log('E2E_FAIL:', sp.title);
-        const msg = t.results?.[0]?.error?.message || t.results?.[0]?.failure?.message || '';
-        console.log('  ERR:', String(msg).slice(0, 400));
+        const msg = String(t.results?.[0]?.error?.message || t.results?.[0]?.failure?.message || '').slice(0, 300);
+        console.log('::error::E2E_FAIL ' + sp.title + ' :: ' + msg.replace(/
+/g, ' '));
       }
     });
   });
