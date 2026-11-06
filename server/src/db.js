@@ -8,7 +8,9 @@ import crypto from 'node:crypto';
 export const TABLES = {
   categories: ['id', 'name', 'color', 'sort', 'createdAt', 'updatedAt', 'deleted'],
   goals: ['id', 'name', 'description', 'color', 'targetHours', 'archived', 'createdAt', 'updatedAt', 'deleted'],
-  events: ['id', 'title', 'categoryId', 'goalId', 'startAt', 'endAt', 'note', 'estimateMs', 'createdAt', 'updatedAt', 'deleted'],
+  events: ['id', 'title', 'categoryId', 'goalId', 'planId', 'startAt', 'endAt', 'note', 'estimateMs', 'createdAt', 'updatedAt', 'deleted'],
+  plans: ['id', 'title', 'categoryId', 'goalId', 'estimateMs', 'note', 'kind', 'status', 'pauseReason', 'endReason', 'plannedDate', 'createdAt', 'updatedAt', 'deleted'],
+  planLogs: ['id', 'planId', 'action', 'reason', 'at', 'updatedAt', 'deleted'],
 };
 
 const INT_COLS = new Set(['sort', 'createdAt', 'updatedAt', 'deleted', 'startAt', 'endAt', 'archived', 'estimateMs']);
@@ -32,8 +34,20 @@ export function openDb(dataDir) {
     );
     CREATE TABLE IF NOT EXISTS events (
       "id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "goalId" TEXT,
-      "startAt" INTEGER NOT NULL, "endAt" INTEGER, "note" TEXT NOT NULL DEFAULT '',
+      "planId" TEXT, "startAt" INTEGER NOT NULL, "endAt" INTEGER, "note" TEXT NOT NULL DEFAULT '',
       "estimateMs" INTEGER, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS plans (
+      "id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "goalId" TEXT,
+      "estimateMs" INTEGER, "note" TEXT NOT NULL DEFAULT '', "kind" TEXT NOT NULL DEFAULT 'planned',
+      "status" TEXT NOT NULL DEFAULT 'waiting', "pauseReason" TEXT, "endReason" TEXT,
+      "plannedDate" TEXT, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS planLogs (
+      "id" TEXT PRIMARY KEY, "planId" TEXT NOT NULL, "action" TEXT NOT NULL,
+      "reason" TEXT, "at" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events("startAt");
@@ -49,6 +63,9 @@ function migrateSchema(db) {
   const cols = new Set(db.prepare('PRAGMA table_info(events)').all().map((c) => c.name));
   if (!cols.has('estimateMs')) {
     db.exec('ALTER TABLE events ADD COLUMN "estimateMs" INTEGER');
+  }
+  if (!cols.has('planId')) {
+    db.exec('ALTER TABLE events ADD COLUMN "planId" TEXT');
   }
 }
 

@@ -50,13 +50,14 @@ export const useTimerStore = defineStore('timer', {
         this._tick = null;
       }
     },
-    async start({ title, categoryId, goalId = null, estimateMs = null }) {
+    async start({ title, categoryId, goalId = null, planId = null, estimateMs = null }) {
       if (this.running.length) throw new Error('已有进行中的计时，请先结束');
       const ev = {
         id: uuid(),
         title: (title || '').trim() || '未命名事项',
         categoryId,
         goalId: goalId || null,
+        planId: planId || null,
         startAt: Date.now(),
         endAt: null,
         note: '',

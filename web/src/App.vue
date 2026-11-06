@@ -4,6 +4,7 @@ import { showToast } from 'vant';
 import { useTimerStore } from './stores/timer.js';
 import { useCatalogStore } from './stores/catalog.js';
 import { useSyncStore } from './stores/sync.js';
+import { usePlanStore } from './stores/plan.js';
 import { isLoggedIn } from './auth/local.js';
 import { isNative, nativeTimer } from './lib/native.js';
 import { fmtDur } from './lib/time.js';
@@ -13,11 +14,14 @@ import { uuid } from './lib/util.js';
 const timer = useTimerStore();
 const catalog = useCatalogStore();
 const sync = useSyncStore();
+const planStore = usePlanStore();
 let unwatch;
+let unwatchPlan;
 
 onMounted(async () => {
   unwatch = timer.watch();
   catalog.watch();
+  unwatchPlan = planStore.watch();
   await ensureSeed();
   await Promise.all([timer.refresh(), catalog.load()]);
   if (isLoggedIn()) sync.setup();
@@ -40,7 +44,7 @@ onMounted(async () => {
     });
   }
 });
-onUnmounted(() => unwatch?.());
+onUnmounted(() => { unwatch?.(); unwatchPlan?.(); });
 
 // 小组件「开始」：以最近一次已完成的事项为模板（事项/分类/目标继承）
 async function startLastFromWidget() {
@@ -63,6 +67,7 @@ async function startLastFromWidget() {
     <van-tabbar-item to="/" icon="clock-o">今日</van-tabbar-item>
     <van-tabbar-item to="/records" icon="orders-o">记录</van-tabbar-item>
     <van-tabbar-item to="/stats" icon="chart-trending-o">统计</van-tabbar-item>
+    <van-tabbar-item to="/plans" icon="todo-list-o">计划</van-tabbar-item>
     <van-tabbar-item to="/goals" icon="aim">目标</van-tabbar-item>
     <van-tabbar-item to="/settings" icon="setting-o">设置</van-tabbar-item>
   </van-tabbar>

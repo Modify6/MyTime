@@ -16,5 +16,12 @@ db.version(2).stores({
   logs: '++seq, time',
 });
 
+// v3：计划系统（plans 计划 + planLogs 执行履历 + events 关联 planId）
+db.version(3).stores({
+  plans: 'id, updatedAt, status, kind',
+  planLogs: 'id, planId, at',
+  events: 'id, updatedAt, startAt, endAt, categoryId, goalId, planId',
+});
+
 // 临时调试钩子（E2E 排查用）
 if (typeof window !== 'undefined') window.__mytimeDebug = { db };

@@ -4,6 +4,8 @@ import RecordsView from './views/RecordsView.vue';
 import StatsView from './views/StatsView.vue';
 import GoalsView from './views/GoalsView.vue';
 import GoalDetailView from './views/GoalDetailView.vue';
+import PlansView from './views/PlansView.vue';
+import PlanDetailView from './views/PlanDetailView.vue';
 import SettingsView from './views/SettingsView.vue';
 
 // 页面保持静态导入：原生 WebView 内动态 import 的 chunk 加载不可靠（曾导致底部页签无法切换）。
@@ -16,6 +18,8 @@ const router = createRouter({
     { path: '/stats', name: 'stats', component: StatsView },
     { path: '/goals', name: 'goals', component: GoalsView },
     { path: '/goals/:id', name: 'goal-detail', component: GoalDetailView },
+    { path: '/plans', name: 'plans', component: PlansView },
+    { path: '/plans/:id', name: 'plan-detail', component: PlanDetailView },
     { path: '/settings', name: 'settings', component: SettingsView },
   ],
 });

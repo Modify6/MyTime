@@ -1,0 +1,100 @@
+{
+ "steps": [
+  "建预排A: OK",
+  "启动A: OK",
+  "挂起A: OK",
+  "恢复A: OK",
+  "建临时B: OK",
+  "启动B触发调度: OK",
+  "调度确认挂起: OK",
+  "恢复A抢占: OK",
+  "调度确认结束临时B: OK",
+  "挂起A二段: OK",
+  "标记完成（原因弹窗）: OK"
+ ],
+ "dump": {
+  "plans": [
+   {
+    "title": "预排任务A",
+    "status": "done",
+    "pauseReason": "被他人打断",
+    "endReason": "按计划完成"
+   },
+   {
+    "title": "临时任务B",
+    "status": "done",
+    "pauseReason": null,
+    "endReason": "当前计划不再继续"
+   }
+  ],
+  "logs": [
+   {
+    "action": "done",
+    "reason": "当前计划不再继续"
+   },
+   {
+    "action": "create",
+    "reason": null
+   },
+   {
+    "action": "pause",
+    "reason": "临时插入更紧急的事"
+   },
+   {
+    "action": "done",
+    "reason": "按计划完成"
+   },
+   {
+    "action": "pause",
+    "reason": "被他人打断"
+   },
+   {
+    "action": "resume",
+    "reason": null
+   },
+   {
+    "action": "pause",
+    "reason": "先处理其他事"
+   },
+   {
+    "action": "start",
+    "reason": null
+   },
+   {
+    "action": "create",
+    "reason": null
+   },
+   {
+    "action": "start",
+    "reason": null
+   },
+   {
+    "action": "resume",
+    "reason": null
+   }
+  ],
+  "events": [
+   {
+    "title": "预排任务A",
+    "planId": "9bc1c6a3",
+    "endAt": true
+   },
+   {
+    "title": "预排任务A",
+    "planId": "9bc1c6a3",
+    "endAt": true
+   },
+   {
+    "title": "预排任务A",
+    "planId": "9bc1c6a3",
+    "endAt": true
+   },
+   {
+    "title": "临时任务B",
+    "planId": "c8648a4d",
+    "endAt": true
+   }
+  ]
+ },
+ "errors": []
+}

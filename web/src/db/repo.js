@@ -1,6 +1,7 @@
 // 数据仓库层：所有本地写入的必经之路 —— 写 IndexedDB + 进 outbox 队列 + 通知订阅者刷新
 import { db } from './schema.js';
 import { shouldReplace } from './merge.js';
+import { uuid } from '../lib/util.js';
 
 const listeners = new Set();
 export function onChange(fn) {
@@ -85,6 +86,14 @@ export async function getMeta(key, fallback = null) {
 export async function setMeta(key, value) {
   await db.meta.put({ key, value });
 }
+
+// —— 计划系统 ——
+export const getPlans = () => db.plans.toArray();
+export const getPlanLogs = (planId) => db.planLogs.where('planId').equals(planId).toArray();
+export const getPlanEvents = (planId) =>
+  db.events.where('planId').equals(planId).and((e) => !e.deleted).toArray();
+export const appendPlanLog = (planId, action, reason = null) =>
+  putRow('planLogs', { id: uuid(), planId, action, reason, at: Date.now() });
 
 // 首次启动播种默认分类（与服务器同 id，连接同步后会被服务端版本一致化）
 const DEFAULT_CATEGORIES = [

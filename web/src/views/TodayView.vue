@@ -4,6 +4,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { showToast, showConfirmDialog } from 'vant';
 import { useTimerStore } from '../stores/timer.js';
 import { useCatalogStore } from '../stores/catalog.js';
+import { usePlanStore } from '../stores/plan.js';
+import PauseReasonDialog from '../components/PauseReasonDialog.vue';
 import { getEventsBetween, getAllEvents, onChange } from '../db/repo.js';
 import { dayRange, fmtClock, fmtDur } from '../lib/time.js';
 import { byCategory, totalMs } from '../stats/aggregate.js';
@@ -16,6 +18,7 @@ import SyncDot from '../components/SyncDot.vue';
 
 const timer = useTimerStore();
 const catalog = useCatalogStore();
+const planStore = usePlanStore();
 
 const todayEvents = ref([]);
 const allEvents = ref([]);
@@ -82,6 +85,20 @@ async function discard() {
   showToast('已放弃');
 }
 
+// 计划挂起（今日页快捷入口，原因可选填）
+const showPauseReason = ref(false);
+const pauseReason = ref('');
+const pauseCustom = ref('');
+function confirmPause() {
+  const reason = pauseCustom.value.trim() || pauseReason.value.trim() || null;
+  planStore.pauseActive(reason).then(() => {
+    showToast('已挂起，可在计划页恢复');
+    showPauseReason.value = false;
+    pauseReason.value = '';
+    pauseCustom.value = '';
+  });
+}
+
 function openEdit(ev) {
   editing.value = ev;
   showEditor.value = true;
@@ -103,6 +120,10 @@ function openEdit(ev) {
         <span class="chip" :style="{ '--c': catalog.catColor(timer.runningEvent.categoryId) }">
           <i class="dot"></i>{{ catalog.catName(timer.runningEvent.categoryId) }}
         </span>
+        <span v-if="planStore.byId(timer.runningEvent.planId)" class="chip"
+          :style="{ '--c': '#f5a623' }">
+          <i class="dot"></i>计划 · {{ planStore.byId(timer.runningEvent.planId)?.kind === 'planned' ? '提前规划' : '临时' }}
+        </span>
         <span v-if="catalog.goalName(timer.runningEvent.goalId)" class="chip"
           :style="{ '--c': catalog.goalMap[timer.runningEvent.goalId]?.color }">
           <i class="dot"></i>{{ catalog.goalName(timer.runningEvent.goalId) }}
@@ -110,6 +131,7 @@ function openEdit(ev) {
       </div>
       <div class="run-actions">
         <van-button round plain type="danger" @click="discard">放弃</van-button>
+        <van-button round plain type="warning" v-if="timer.runningEvent.planId" @click="showPauseReason = true">挂起</van-button>
         <van-button round plain @click="openEdit(timer.runningEvent)">备注</van-button>
         <van-button round type="primary" @click="stop">结束打卡</van-button>
       </div>
@@ -168,6 +190,7 @@ function openEdit(ev) {
       <div v-else class="empty-tip">今天还没有记录<br />点上方快捷球开始第一次打卡</div>
     </div>
 
+    <PauseReasonDialog v-model:show="showPauseReason" @confirm="({ reason }) => confirmPause(reason)" />
     <StartSheet v-model:show="showStart" :recs="recs" @quick="quickStart" />
     <EventEditor v-model:show="showEditor" :event="editing" @saved="load" />
   </div>
