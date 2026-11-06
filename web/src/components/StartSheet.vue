@@ -1,5 +1,6 @@
 <script setup>
-// 打卡开始面板：顶部智能推荐（习惯 + 时段分析），下方手动选择
+// 打卡开始面板：固定头（标题 + 智能推荐）+ 可滚动表单 + 固定底（开始按钮）
+// —— 无论内容多长，标题与开始按钮始终可见
 import { computed, ref, watch } from 'vue';
 import { showToast } from 'vant';
 import { useCatalogStore } from '../stores/catalog.js';
@@ -8,7 +9,6 @@ import { getAllEvents } from '../db/repo.js';
 import { titleHint, categoryHint } from '../stats/historyHint.js';
 import { emojiFor } from '../stats/recommend.js';
 import { fmtDur } from '../lib/time.js';
-import { bindBackClose } from '../lib/native.js';
 
 const props = defineProps({
   show: Boolean,
@@ -18,7 +18,6 @@ const emit = defineEmits(['update:show', 'quick', 'started']);
 
 const catalog = useCatalogStore();
 const timer = useTimerStore();
-bindBackClose(() => props.show, () => emit('update:show', false));
 
 const title = ref('');
 const categoryId = ref('');
@@ -105,100 +104,122 @@ async function start() {
     @update:show="(v) => emit('update:show', v)"
   >
     <div class="sheet">
-      <div class="sheet-title">开始一件事</div>
+      <!-- 固定头：标题 + 智能推荐 -->
+      <div class="sheet-head">
+        <div class="sheet-title">开始一件事</div>
 
-      <!-- 智能推荐 -->
-      <template v-if="recs.length">
-        <div class="rec-title">为你推荐</div>
-        <div class="rec-row">
-          <button
-            v-for="(r, i) in recs"
-            :key="r.title"
-            class="rec-card"
-            :style="{ '--c': catalog.catColor(r.categoryId), '--i': i }"
-            @click="emit('quick', r)"
-          >
-            <span class="rec-emoji">{{ emojiFor(r.categoryId) }}</span>
-            <span class="rec-name">{{ r.title }}</span>
-            <span class="rec-reason">{{ r.reason }}</span>
+        <template v-if="recs.length">
+          <div class="rec-title">为你推荐</div>
+          <div class="rec-row">
+            <button
+              v-for="(r, i) in recs"
+              :key="r.title"
+              class="rec-pill"
+              :style="{ '--c': catalog.catColor(r.categoryId), '--i': i }"
+              @click="emit('quick', r)"
+            >
+              <span class="rec-emoji">{{ emojiFor(r.categoryId) }}</span>
+              <span class="rec-name">{{ r.title }}</span>
+              <span class="rec-reason">{{ r.reason }}</span>
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- 可滚动表单 -->
+      <div class="sheet-body">
+        <div class="divider">或手动选择</div>
+
+        <van-field v-model="title" placeholder="你在做什么？（如：写论文 / 英语听力）" clearable />
+
+        <div v-if="recentTitles.length" class="sug-row">
+          <button v-for="e in recentTitles" :key="e.id" class="sug" @click="title = e.title; categoryId = e.categoryId; goalId = e.goalId">
+            {{ e.title }}
           </button>
         </div>
-        <div class="divider">或手动选择</div>
-      </template>
 
-      <van-field v-model="title" placeholder="你在做什么？（如：写论文 / 英语听力）" clearable />
+        <div class="hint-box" v-if="hint">
+          <span class="hint-label">历史参照</span>
+          上次 {{ fmtDur(hint.lastMs) }} · 平均 {{ fmtDur(hint.avgMs) }} · 共 {{ hint.count }} 次
+        </div>
 
-      <div v-if="recentTitles.length" class="sug-row">
-        <button v-for="e in recentTitles" :key="e.id" class="sug" @click="title = e.title; categoryId = e.categoryId; goalId = e.goalId">
-          {{ e.title }}
-        </button>
-      </div>
-
-      <div class="hint-box" v-if="hint">
-        <span class="hint-label">历史参照</span>
-        上次 {{ fmtDur(hint.lastMs) }} · 平均 {{ fmtDur(hint.avgMs) }} · 共 {{ hint.count }} 次
-      </div>
-
-      <div class="field-label">预计用时（选填，结束时可对比偏差）</div>
-      <div class="cat-grid">
-        <button
-          v-for="opt in EST_OPTIONS"
-          :key="opt.min"
-          class="cat-item"
-          :class="{ active: estimateMin === opt.min }"
-          @click="estimateTouched = true; estimateMin = estimateMin === opt.min ? null : opt.min"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
-
-      <div class="field-label">分类</div>
-      <div class="cat-grid">
-        <button
-          v-for="c in catalog.sortedCategories"
-          :key="c.id"
-          class="cat-item"
-          :class="{ active: categoryId === c.id }"
-          :style="{ '--c': c.color }"
-          @click="categoryId = c.id"
-        >
-          <i class="dot"></i>{{ c.name }}
-        </button>
-      </div>
-
-      <template v-if="catalog.activeGoals.length">
-        <div class="field-label">关联目标（可选）</div>
+        <div class="field-label">预计用时（选填，结束时可对比偏差）</div>
         <div class="cat-grid">
           <button
-            v-for="g in catalog.activeGoals"
-            :key="g.id"
+            v-for="opt in EST_OPTIONS"
+            :key="opt.min"
             class="cat-item"
-            :class="{ active: goalId === g.id }"
-            :style="{ '--c': g.color }"
-            @click="goalId = goalId === g.id ? null : g.id"
+            :class="{ active: estimateMin === opt.min }"
+            @click="estimateTouched = true; estimateMin = estimateMin === opt.min ? null : opt.min"
           >
-            <i class="dot"></i>{{ g.name }}
+            {{ opt.label }}
           </button>
         </div>
-      </template>
 
-      <van-button type="primary" block round :loading="starting" class="start-btn" @click="start">
-        开始计时
-      </van-button>
+        <div class="field-label">分类</div>
+        <div class="cat-grid">
+          <button
+            v-for="c in catalog.sortedCategories"
+            :key="c.id"
+            class="cat-item"
+            :class="{ active: categoryId === c.id }"
+            :style="{ '--c': c.color }"
+            @click="categoryId = c.id"
+          >
+            <i class="dot"></i>{{ c.name }}
+          </button>
+        </div>
+
+        <template v-if="catalog.activeGoals.length">
+          <div class="field-label">关联目标（可选）</div>
+          <div class="cat-grid">
+            <button
+              v-for="g in catalog.activeGoals"
+              :key="g.id"
+              class="cat-item"
+              :class="{ active: goalId === g.id }"
+              :style="{ '--c': g.color }"
+              @click="goalId = goalId === g.id ? null : g.id"
+            >
+              <i class="dot"></i>{{ g.name }}
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- 固定底：开始按钮 -->
+      <div class="sheet-foot">
+        <van-button type="primary" block round :loading="starting" @click="start">
+          开始计时
+        </van-button>
+      </div>
     </div>
   </van-popup>
 </template>
 
 <style scoped>
 .sheet {
-  padding: 18px 16px 8px;
-  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  max-height: 82vh;
+  padding: 16px 16px 8px;
+}
+.sheet-head {
+  flex: none;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+.sheet-foot {
+  flex: none;
+  padding-top: 10px;
 }
 .sheet-title {
   font-size: 16px;
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .rec-title {
   font-size: 12px;
@@ -207,38 +228,36 @@ async function start() {
 }
 .rec-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   overflow-x: auto;
-  padding: 2px 2px 6px;
+  padding: 2px 2px 4px;
 }
-.rec-card {
+/* 单行轻量推荐：emoji + 名称 + 理由，点按即开始 */
+.rec-pill {
   flex: none;
-  width: 116px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
-  background: color-mix(in srgb, var(--c) 9%, var(--card));
-  padding: 10px 12px 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 10%, var(--card));
+  padding: 7px 12px;
   cursor: pointer;
-  text-align: left;
-  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i) * 70ms) backwards;
+  animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--i) * 70ms) backwards;
   transition: transform 0.15s;
 }
-.rec-card:active {
+.rec-pill:active {
   transform: scale(0.94);
 }
 .rec-emoji {
-  font-size: 22px;
-  line-height: 1.2;
+  font-size: 16px;
+  line-height: 1;
 }
 .rec-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  max-width: 100%;
+  max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -246,6 +265,10 @@ async function start() {
 .rec-reason {
   font-size: 10.5px;
   color: var(--text-3);
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .divider {
   display: flex;
@@ -253,7 +276,7 @@ async function start() {
   gap: 10px;
   color: var(--text-3);
   font-size: 11px;
-  margin: 14px 0 6px;
+  margin: 4px 0 8px;
 }
 .divider::before,
 .divider::after {
@@ -265,13 +288,13 @@ async function start() {
 .field-label {
   font-size: 12px;
   color: var(--text-3);
-  margin: 14px 2px 8px;
+  margin: 12px 2px 8px;
 }
 .sug-row {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 10px 2px 2px;
+  padding: 8px 2px 2px;
 }
 .sug {
   flex: none;
@@ -284,8 +307,8 @@ async function start() {
   cursor: pointer;
 }
 .hint-box {
-  margin: 12px 2px 2px;
-  padding: 9px 12px;
+  margin: 10px 2px 2px;
+  padding: 8px 12px;
   border-radius: 10px;
   background: color-mix(in srgb, var(--brand) 10%, var(--card));
   color: var(--brand);
@@ -294,8 +317,5 @@ async function start() {
 .hint-label {
   font-weight: 700;
   margin-right: 8px;
-}
-.start-btn {
-  margin-top: 18px;
 }
 </style>

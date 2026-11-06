@@ -123,6 +123,8 @@ async function remove() {
     <div v-if="form" class="sheet">
       <div class="sheet-title">{{ event ? '编辑记录' : '补录时段' }}</div>
 
+      <div class="sheet-body">
+
       <van-field v-model="form.title" placeholder="事项名称" clearable />
       <van-field v-model="form.estimateMin" type="number" placeholder="预计用时（分钟，选填，用于计划对比）" />
 
@@ -187,10 +189,14 @@ async function remove() {
         placeholder="补充说明（做了什么、产出、感受…）"
       />
 
+      </div>
+
+      <div class="sheet-foot">
       <div class="btn-row">
         <van-button v-if="event" plain type="danger" @click="remove">删除</van-button>
         <van-button v-if="running" type="primary" @click="stopNow">结束计时</van-button>
         <van-button type="primary" @click="save">保存</van-button>
+      </div>
       </div>
     </div>
   </van-popup>
@@ -198,9 +204,19 @@ async function remove() {
 
 <style scoped>
 .sheet {
+  display: flex;
+  flex-direction: column;
   padding: 18px 16px 8px;
-  max-height: 76vh;
+  max-height: 82vh;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+.sheet-foot {
+  flex: none;
+  padding-top: 12px;
 }
 .sheet-title {
   font-size: 16px;
@@ -233,7 +249,6 @@ async function remove() {
 .btn-row {
   display: flex;
   gap: 10px;
-  margin-top: 18px;
 }
 .btn-row .van-button {
   flex: 1;
