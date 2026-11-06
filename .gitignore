@@ -21,3 +21,6 @@ MyTime.apk
 # 诊断临时文件
 .net-raw.txt
 .net-hit.txt
+
+# Playwright 产物
+test-results/
