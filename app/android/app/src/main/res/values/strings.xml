@@ -4,4 +4,5 @@
     <string name="title_activity_main">MyTime 时间账本</string>
     <string name="package_name">com.mytime.app</string>
     <string name="custom_url_scheme">com.mytime.app</string>
+    <string name="widget_desc">今日累计与快捷计时</string>
 </resources>

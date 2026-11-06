@@ -1,6 +1,7 @@
 package com.mytime.app;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 
@@ -39,6 +40,25 @@ public class TimerPlugin extends Plugin {
         intent.putExtra("title", title);
         intent.putExtra("startAt", startAt);
         ContextCompat.startForegroundService(getContext(), intent);
+        call.resolve();
+    }
+
+    /**
+     * JS → 原生状态快照（桌面小组件/快捷磁贴的数据源）：
+     * 数据在 WebView IndexedDB 里，原生侧只存 SharedPreferences 快照供 Widget 渲染
+     */
+    @PluginMethod
+    public void syncWidgetState(PluginCall call) {
+        Double todayMsD = call.getDouble("todayMs");
+        Double runningStartAtD = call.getDouble("runningStartAt");
+        android.content.SharedPreferences sp = getContext().getSharedPreferences("mytime", Context.MODE_PRIVATE);
+        sp.edit()
+                .putLong("widgetTodayMs", todayMsD == null ? 0 : todayMsD.longValue())
+                .putString("widgetDate", call.getString("date", ""))
+                .putString("widgetRunningTitle", call.getString("runningTitle", ""))
+                .putLong("widgetRunningStartAt", runningStartAtD == null ? 0 : runningStartAtD.longValue())
+                .apply();
+        MyTimeWidgetProvider.requestUpdate(getContext());
         call.resolve();
     }
 
