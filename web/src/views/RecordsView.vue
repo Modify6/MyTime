@@ -8,6 +8,7 @@ import { totalMs, layoutDayLanes } from '../stats/aggregate.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import EventItem from '../components/EventItem.vue';
 import EventEditor from '../components/EventEditor.vue';
+import { bindBackClose } from '../lib/native.js';
 
 const catalog = useCatalogStore();
 // 单日时间轴弹层
@@ -32,6 +33,7 @@ const axisDayShow = computed({
     if (!v) axisDay.value = null;
   },
 });
+bindBackClose(axisDayShow, () => (axisDay.value = null));
 function openAxis(key) {
   axisDay.value = key;
 }

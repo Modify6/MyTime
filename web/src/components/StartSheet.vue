@@ -8,6 +8,7 @@ import { getAllEvents } from '../db/repo.js';
 import { titleHint, categoryHint } from '../stats/historyHint.js';
 import { emojiFor } from '../stats/recommend.js';
 import { fmtDur } from '../lib/time.js';
+import { bindBackClose } from '../lib/native.js';
 
 const props = defineProps({
   show: Boolean,
@@ -17,6 +18,7 @@ const emit = defineEmits(['update:show', 'quick', 'started']);
 
 const catalog = useCatalogStore();
 const timer = useTimerStore();
+bindBackClose(() => props.show, () => emit('update:show', false));
 
 const title = ref('');
 const categoryId = ref('');

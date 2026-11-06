@@ -11,7 +11,7 @@ import { uuid } from '../lib/util.js';
 import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
-import { isNativeApp, nativeReminder } from '../lib/native.js';
+import { isNativeApp, nativeReminder, bindBackClose, openAppSettings } from '../lib/native.js';
 import dayjs from 'dayjs';
 
 const auth = useAuthStore();
@@ -82,6 +82,7 @@ const showCatForm = ref(false);
 const catForm = ref({});
 const PALETTE = ['#4f6ef7', '#7c4dff', '#00acc1', '#43a047', '#f0a800', '#ff7043', '#ec407a', '#8d6e63', '#90a4ae'];
 
+bindBackClose(showCatForm, () => (showCatForm.value = false));
 function addCat() {
   catForm.value = { id: uuid(), name: '', color: PALETTE[catalog.sortedCategories.length % PALETTE.length], sort: catalog.sortedCategories.length, createdAt: Date.now() };
   showCatForm.value = true;
@@ -339,6 +340,9 @@ onUnmounted(() => clearInterval(logTimer));
         <input type="time" class="time-input" :value="remindTime" @change="onRemindTime" />
       </div>
       <div class="muted">到点后弹通知提醒（误差几分钟内属正常）。</div>
+      <div style="margin-top: 8px">
+        <van-button size="small" round plain @click="openAppSettings">通知与自启动设置</van-button>
+      </div>
     </div>
 
     <!-- 安装到手机 -->

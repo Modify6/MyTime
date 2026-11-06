@@ -6,6 +6,7 @@ import { useCatalogStore } from '../stores/catalog.js';
 import { putRow, softDelete } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
 import { toLocalInput, fromLocalInput } from '../lib/time.js';
+import { bindBackClose } from '../lib/native.js';
 
 const props = defineProps({
   show: Boolean,
@@ -14,6 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['update:show', 'saved']);
 
 const catalog = useCatalogStore();
+bindBackClose(() => props.show, () => emit('update:show', false));
 
 const form = ref(null);
 const splitAt = ref(null);

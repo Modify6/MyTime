@@ -6,6 +6,6 @@
     "cleartext": true
   },
   "android": {
-    "adjustMarginsForEdgeToEdge": "force"
+    "allowMixedContent": true
   }
 }

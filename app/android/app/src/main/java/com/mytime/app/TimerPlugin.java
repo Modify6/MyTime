@@ -44,29 +44,57 @@ public class TimerPlugin extends Plugin {
         call.resolve();
     }
 
-    /** 原生读取系统栏底部高度（dp），注入 CSS 变量供弹层/页面避让手势条 */
+    /** 原生读取系统栏高度（dp）注入 CSS 变量：APK 全程 edge-to-edge，顶部/底部避让全部由 CSS 承担 */
     @PluginMethod
     public void getSafeArea(PluginCall call) {
         getBridge().getActivity().runOnUiThread(() -> {
             try {
                 android.view.View decor = getBridge().getWebView().getRootView();
                 android.view.WindowInsets insets = decor.getRootWindowInsets();
+                int top = 0;
                 int bottom = 0;
                 if (insets != null) {
                     if (Build.VERSION.SDK_INT >= 30) {
-                        bottom = insets.getInsets(android.view.WindowInsets.Type.systemBars()).bottom;
+                        android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                        top = bars.top;
+                        bottom = bars.bottom;
                     } else {
+                        top = insets.getStableInsetTop();
                         bottom = insets.getSystemWindowInsetBottom();
                     }
                 }
                 float density = getContext().getResources().getDisplayMetrics().density;
                 JSObject r = new JSObject();
+                r.put("top", Math.max(0, Math.round(top / density)));
                 r.put("bottom", Math.max(0, Math.round(bottom / density)));
                 call.resolve(r);
             } catch (Exception e) {
                 call.resolve(new JSObject());
             }
         });
+    }
+
+    /** 通知权限状态（ColorOS 等需要用户手动授权，写入运行日志便于诊断"看不到计时通知"） */
+    @PluginMethod
+    public void notificationsEnabled(PluginCall call) {
+        android.app.NotificationManager nm = (android.app.NotificationManager) getContext()
+                .getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean enabled = Build.VERSION.SDK_INT < 24
+                || nm == null
+                || nm.areNotificationsEnabled();
+        JSObject r = new JSObject();
+        r.put("enabled", enabled);
+        call.resolve(r);
+    }
+
+    /** 打开系统应用详情页（通知 / 自启动 / 后台弹出界面 的权限入口） */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        Intent i = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        i.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
     }
 
     /**

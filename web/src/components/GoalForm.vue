@@ -3,6 +3,7 @@
 import { ref, watch } from 'vue';
 import { showToast } from 'vant';
 import { useCatalogStore } from '../stores/catalog.js';
+import { bindBackClose } from '../lib/native.js';
 import { uuid } from '../lib/util.js';
 
 const props = defineProps({
@@ -12,6 +13,7 @@ const props = defineProps({
 const emit = defineEmits(['update:show', 'saved']);
 
 const catalog = useCatalogStore();
+bindBackClose(() => props.show, () => emit('update:show', false));
 const PALETTE = ['#4f6ef7', '#7c4dff', '#00acc1', '#43a047', '#f0a800', '#ff7043', '#ec407a', '#8d6e63'];
 
 const form = ref({});

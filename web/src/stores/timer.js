@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import dayjs from 'dayjs';
 import { getRunningEvents, getEventsBetween, putRow, onChange } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
-import { nativeTimer, isNative } from '../lib/native.js';
+import { nativeTimer, isNative, notificationsEnabled } from '../lib/native.js';
 import { logInfo, logError } from '../lib/logger.js';
 
 // 状态快照推送到原生（小组件/磁贴渲染数据源）
@@ -71,7 +71,11 @@ export const useTimerStore = defineStore('timer', {
         try {
           nt.ensureNotificationPermission?.();
           nt.start({ title: ev.title, startAt: ev.startAt });
-          logInfo('timer', `已开始「${ev.title}」· 原生通知已启动`);
+          // 通知权限诊断：没授权时常驻计时不会出现在任务栏（ColorOS 等还会拦后台服务）
+          notificationsEnabled().then((ok) => {
+            if (ok) logInfo('timer', `已开始「${ev.title}」· 原生通知已启动`);
+            else logError('timer', `已开始「${ev.title}」但通知权限未开启——常驻计时不可见，请在设置里开启通知`);
+          });
         } catch (e) {
           logError('timer', `原生通知启动失败: ${e?.message || e}`);
         }

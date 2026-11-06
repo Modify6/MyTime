@@ -19,6 +19,7 @@
 }
 
 :root {
+  --safe-top: 0px; /* APK 由原生注入状态栏高度 */
   --safe-bottom: 0px; /* APK 由原生注入手势条/导航栏高度（env 在 WebView 内恒为 0） */
 }
 
@@ -61,7 +62,7 @@ body {
   max-width: 560px;
   margin: 0 auto;
   /* 顶部安全区：iOS PWA 避让刘海/状态栏；安卓 APK 由 adjustMarginsForEdgeToEdge 处理 */
-  padding: calc(14px + env(safe-area-inset-top)) 16px
+  padding: calc(14px + env(safe-area-inset-top, 0px) + var(--safe-top)) 16px
     calc(70px + env(safe-area-inset-bottom, 0px) + var(--safe-bottom));
 }
 
