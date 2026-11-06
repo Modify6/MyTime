@@ -80,6 +80,8 @@ MYTIME_PASSWORD=你的密码 PORT=3128 npm start
 
 ## 版本与更新
 
+> 每个重大 bug 的根因与预防沉淀在 [docs/lessons.md](docs/lessons.md)——技术教训档案，随版本持续追加。
+
 - 版本唯一来源：`web/package.json` 的 `version`；构建时注入前端，`apk.bat` 打包前自动同步到 APK 的 `versionName/versionCode`
 - 每次发版：改版本号 → 在 `CHANGELOG.md` 记一条 → 重跑 `apk.bat`
 - 应用内「设置 → 运行日志」与「关于」都会显示当前版本
