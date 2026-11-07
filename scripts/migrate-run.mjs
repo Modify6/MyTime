@@ -27,6 +27,22 @@ const isRepo = (p) => p && fs.existsSync(path.join(p, '.git'));
 const readFirst = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split(/\r?\n/)[0] : '');
 const save = (f, v) => fs.writeFileSync(f, v + '\n', 'utf8');
 
+// —— 日志：控制台 + 时间戳全量写入迁移目录（随 U 盘走，可回传诊断）——
+let LOG_PATH = '';
+function startLog(tag) {
+  try {
+    const old = fs.readdirSync(USB).filter((f) => f.startsWith('迁移日志-') && f.endsWith('.log')).sort();
+    for (const f of old.slice(0, Math.max(0, old.length - 19))) { try { fs.unlinkSync(path.join(USB, f)); } catch {} }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    LOG_PATH = path.join(USB, `迁移日志-${tag}-${stamp}.log`);
+    fs.appendFileSync(LOG_PATH, `# MyTime 迁移日志 tag=${tag} mode=${mode}\n# node=${process.version} os=${os.type()} ${os.release()}\n# U盘=${USB}\n\n`);
+  } catch {}
+}
+function log(msg) {
+  console.log(msg);
+  if (LOG_PATH) { try { fs.appendFileSync(LOG_PATH, `[${new Date().toISOString()}] ${String(msg)}\n`); } catch {} }
+}
+
 // 共享一个 readline 实例；stdin 关闭（如管道预置答案用尽）时回退默认值而不是挂死/崩溃
 let _rl = null;
 async function ask(question, def = '') {
@@ -63,10 +79,12 @@ async function locateTarget() {
 function robocopy(from, to, extraExcludes = []) {
   const args = [from, to, '/E', '/MT:8', '/R:1', '/W:1', '/NFL', '/NDL', '/NP', '/XF', 'MyTime.apk'];
   for (const d of [...ZI_EXCLUDE_DIRS, ...extraExcludes]) args.push('/XD', d);
-  console.log('[robocopy] ' + args.join(' '));
+  log('[robocopy] ' + args.join(' '));
+  const t = Date.now();
   const r = spawnSync('robocopy', args, { stdio: 'inherit' });
+  log(`[robocopy] 退出码 ${r.status}（0-7 均为成功），耗时 ${((Date.now() - t) / 1000).toFixed(1)} 秒${r.error ? '，error=' + String(r.error).split('\n')[0] : ''}`);
   if (r.status === null || r.status >= 8) {
-    console.error(`[错误] robocopy 失败（退出码 ${r.status}）——常见原因：U 盘空间不足。可重跑并把大目录排除。`);
+    log(`[错误] robocopy 失败——常见原因：U 盘空间不足。可重跑并把大目录排除（--exclude-dir=目录名）。`);
     process.exit(1);
   }
   console.log(`[完成] 文件夹同步完成（robocopy 退出码 ${r.status}，0-7 均为成功）。`);
