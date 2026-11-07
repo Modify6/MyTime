@@ -3,7 +3,7 @@ import { saveJson, shotPath } from './helpers/debug.mjs';
 
 // 计划调度全流程（调试模式：失败不断链，最终 dump 数据库与页面状态）
 test('计划调度全流程：预排/挂起/抢占/恢复/完成', async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(240_000); // CI 机器慢：多步骤固定等待累积，150s 会误超时
   const state = { steps: [], dump: null, errors: [] };
   const save = () => saveJson('.debug-state.json', state);
   const step = async (name, fn) => {
