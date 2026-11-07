@@ -13,6 +13,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem ---- 工具链自举：缺便携 JDK / Android SDK 时自动下载安装（一次性） ----
+if not exist "%LOCALAPPDATA%\MyTime\jdk\bin\java.exe" (
+  echo [工具链] 未检测到便携 JDK，自动下载安装（清华镜像，约 200MB，一次性）...
+  call node scripts\setup-toolchain.mjs jdk
+  if errorlevel 1 goto :fail
+)
+if not exist "%LOCALAPPDATA%\Android\Sdk\platforms\android-35" (
+  echo [工具链] 未检测到 Android SDK，自动下载安装（dl.google.com，约 600MB，一次性）...
+  call node scripts\setup-toolchain.mjs android-sdk
+  if errorlevel 1 goto :fail
+)
+
 rem ---- Java：优先 JAVA_HOME，其次本工具链，再次 Android Studio 自带 JBR ----
 if not defined JAVA_HOME (
   if exist "%LOCALAPPDATA%\MyTime\jdk\bin\java.exe" set "JAVA_HOME=%LOCALAPPDATA%\MyTime\jdk"
@@ -23,7 +35,7 @@ if not defined JAVA_HOME (
 if defined JAVA_HOME set "PATH=%JAVA_HOME%\bin;%PATH%"
 where java >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未找到 Java。请先安装 Android Studio（自带 JDK 与安卓 SDK）：
+  echo [错误] Java 自举失败。请把上方输出发给开发者，或手动安装 Android Studio：
   echo   https://developer.android.com/studio
   pause
   exit /b 1
