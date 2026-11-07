@@ -20,6 +20,18 @@ function emit(type, message) {
 
 let syncing = false;
 
+// 写后防抖上推：本地写入（putRow → enqueue → writeHook）后 3 秒内合并为一次推送。
+// 独立于 30s 轮询/前台切换——让"另一台设备 ≤30s 可见"缩到"≤3s 已出本机"。
+let pushTimer = null;
+export function schedulePush(delay = 3000) {
+  if (!getToken()) return;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    pushTimer = null;
+    syncNow();
+  }, delay);
+}
+
 export async function syncNow() {
   if (syncing || !getToken()) return;
   syncing = true;

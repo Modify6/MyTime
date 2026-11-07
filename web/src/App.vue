@@ -31,6 +31,8 @@ onMounted(async () => {
       const ev = await timer.stopCurrent();
       if (ev) showToast(`已记录 ${fmtDur(ev.endAt - ev.startAt)}`);
     });
+    // 原生前台恢复 → 立即同步（visibilitychange 是间接覆盖，resume 更可靠）
+    window.Capacitor?.Plugins?.App?.addListener?.('resume', () => sync.trigger());
     // 桌面小组件/快捷磁贴的深链动作
     const AppPlugin = window.Capacitor?.Plugins?.App;
     AppPlugin?.addListener?.('appUrlOpen', async (data) => {

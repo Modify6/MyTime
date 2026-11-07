@@ -120,3 +120,56 @@ describe('同步引擎', () => {
     expect(alive[0].title).toBe('本地版2');
   });
 });
+
+describe('写后防抖上推（v0.10.0 全自动同步）', () => {
+  it('putRow 触发 writeHook，防抖到点后 api.sync 收到该变更', async () => {
+    mockSyncApi = vi.fn(async (p) => ({ serverTime: 5000, applied: p.changes.length, changes: [] }));
+    let hookCalls = 0;
+    repo.setWriteHook(() => {
+      hookCalls++;
+      sync.schedulePush(10);
+    });
+
+    await repo.putRow('events', evRow('hook-ev', '写后上推', 1));
+    expect(hookCalls).toBe(1);
+
+    await new Promise((r) => setTimeout(r, 80)); // 等防抖到点 + 同步完成
+    expect(mockSyncApi).toHaveBeenCalledTimes(1);
+    const sent = mockSyncApi.mock.calls[0][0];
+    expect(sent.changes.some((c) => c.rows.some((r) => r.id === 'hook-ev'))).toBe(true);
+    repo.setWriteHook(null);
+  });
+
+  it('adoptRow 拉取写入不触发 writeHook（防拉→推循环）', async () => {
+    let calls = 0;
+    repo.setWriteHook(() => calls++);
+    const replaced = await repo.adoptRow('events', evRow('pull-row', '远端行', Date.now() + 99999), {});
+    expect(replaced).toBe(true);
+    expect(calls).toBe(0);
+    repo.setWriteHook(null);
+  });
+
+  it('未登录时 schedulePush 不动作', async () => {
+    const local = await import('../src/auth/local.js');
+    local.setToken('');
+    mockSyncApi = vi.fn(async (p) => ({ serverTime: 5000, applied: 0, changes: [] }));
+    sync.schedulePush(10);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(mockSyncApi).not.toHaveBeenCalled();
+  });
+
+  it('连续多次写入合并：防抖窗口内只推一次，且推的是最终状态', async () => {
+    mockSyncApi = vi.fn(async (p) => ({ serverTime: 5000, applied: p.changes.length, changes: [] }));
+    repo.setWriteHook(() => sync.schedulePush(15));
+    await repo.putRow('events', evRow('merge-ev', '第一版', 1));
+    await new Promise((r) => setTimeout(r, 5));
+    await repo.putRow('events', evRow('merge-ev', '第二版', 2));
+    await new Promise((r) => setTimeout(r, 60)); // 越过整个防抖窗口
+
+    expect(mockSyncApi).toHaveBeenCalledTimes(1); // 两次写入只推一次
+    const sent = mockSyncApi.mock.calls[0][0];
+    const row = sent.changes.flatMap((c) => c.rows).find((r) => r.id === 'merge-ev');
+    expect(row.title).toBe('第二版');
+    repo.setWriteHook(null);
+  });
+});

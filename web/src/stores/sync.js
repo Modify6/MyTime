@@ -1,28 +1,31 @@
 import { defineStore } from 'pinia';
-import { syncNow, onSyncEvent } from '../db/sync.js';
-import { isLoggedIn, getServerUrl, getAutoBackup } from '../auth/local.js';
-import { getMeta, setMeta } from '../db/repo.js';
+import { syncNow, schedulePush, onSyncEvent } from '../db/sync.js';
+import { isLoggedIn, getServerUrl, getAutoBackup, getLastSyncAt, setLastSyncAt } from '../auth/local.js';
+import { getMeta, setMeta, setWriteHook } from '../db/repo.js';
 import { api } from '../api/client.js';
-import { logInfo, logError } from '../lib/logger.js';
+import { logInfo, logError, logWarn } from '../lib/logger.js';
 
 export const useSyncStore = defineStore('sync', {
   state: () => ({
     status: 'idle', // idle | syncing | ok | error
-    lastSyncAt: null,
+    lastSyncAt: getLastSyncAt() || null, // 持久化：刷新后仍能显示上次同步时间
     error: '',
     _timer: null,
     _bound: false,
   }),
   actions: {
-    // 在 App 挂载后调用一次：启动定时/联网/回前台触发的自动同步
+    // 在 App 挂载后调用一次：启动定时/联网/回前台/写后触发的自动同步
     setup() {
       if (this._bound) return;
       this._bound = true;
+      // 本地写入 → 3 秒防抖上推（putRow 经 enqueue 触发 writeHook；拉取写入不触发，无循环）
+      setWriteHook(() => schedulePush());
       onSyncEvent(({ type, message }) => {
         if (type === 'start') this.status = 'syncing';
         else if (type === 'done') {
           this.status = 'ok';
           this.lastSyncAt = Date.now();
+          setLastSyncAt(this.lastSyncAt);
           this.error = '';
           logInfo('sync', `同步成功 · ${getServerUrl() || '本机服务'}`);
           this.maybeAutoBackup();

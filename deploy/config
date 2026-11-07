@@ -1,6 +1,6 @@
 # MyTime 部署配置（本文件含敏感信息，已被 .gitignore 排除）
 SERVER_HOST=101.201.208.39
-SERVER_USER=admin
+SERVER_USER=root
 SERVER_PORT=22
 
 # 域名（备案通过后填入，再跑一次 upload.sh 即可上 HTTPS；备案前留空走 HTTP:3128）

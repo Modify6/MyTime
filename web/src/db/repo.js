@@ -9,6 +9,14 @@ export function onChange(fn) {
   return () => listeners.delete(fn);
 }
 
+// 本地写入钩子：enqueue（本地写）后触发，供同步层接线"写后防抖上推"。
+// 独立于 onChange（那会连 adoptRow 拉取写入一起通知）——避免拉→推循环。
+// 不直接 import sync.js：sync.js 依赖本模块，反向引用会造成环依赖。
+let writeHook = null;
+export function setWriteHook(fn) {
+  writeHook = typeof fn === 'function' ? fn : null;
+}
+
 let scheduled = false;
 function bump() {
   if (scheduled) return;
@@ -34,6 +42,9 @@ async function enqueue(table, row) {
     await db.outbox.where('key').equals(key).delete();
     await db.outbox.add({ key, table, row });
   });
+  try {
+    writeHook?.();
+  } catch {}
 }
 
 // 本地编辑：盖当前时间戳并待同步
