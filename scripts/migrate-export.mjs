@@ -16,7 +16,7 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const MIGRATE_VERSION = '3';
+const MIGRATE_VERSION = '4';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOME = os.homedir();
 const OUT = path.resolve(process.argv[2] || path.join(ROOT, '..', 'mytime-migrate-export'));
@@ -49,6 +49,13 @@ const cp = (src, destDir) => {
   if (!fs.existsSync(src)) return false;
   fs.mkdirSync(destDir, { recursive: true });
   fs.copyFileSync(src, path.join(destDir, path.basename(src)));
+  return true;
+};
+// 精确到文件路径的复制（cp 的第二参会被当目录拼接 basename，不能用于"拷成指定文件名"）
+const cpFile = (src, destFile) => {
+  if (!fs.existsSync(src)) return false;
+  fs.mkdirSync(path.dirname(destFile), { recursive: true });
+  fs.copyFileSync(src, destFile);
   return true;
 };
 const cpDir = (src, destDir) => {
@@ -121,8 +128,8 @@ if (fs.existsSync(memProjects)) {
     log(`  ✓ AI 记忆（全部 ${keys.length} 个项目键）`);
   }
 } else log('  - memories 目录不存在，跳过');
-// 桌面端侧栏「项目」列表不在会话库里，而在 v2/setting.json 的 recentProjects——单独导出
-if (cp(path.join(HOME, '.zcode', 'v2', 'setting.json'), path.join(OUT, 'zcode-cli', 'v2-setting.json'))) {
+// 桌面端侧栏「项目」列表不在会话库里，而在 v2/setting.json 的 recentProjects——单独导出（精确复制为文件）
+if (cpFile(path.join(HOME, '.zcode', 'v2', 'setting.json'), path.join(OUT, 'zcode-cli', 'v2-setting.json'))) {
   manifest.push('zcode-cli/v2-setting.json —— 桌面端设置（含侧栏 recentProjects 项目列表，导入时只合并该项）');
   log('  ✓ 桌面端 setting.json（recentProjects）');
 } else log('  - v2/setting.json 不存在，跳过');

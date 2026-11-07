@@ -10,7 +10,7 @@ import os from 'node:os';
 import { execSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const MIGRATE_VERSION = '3';
+const MIGRATE_VERSION = '4';
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const toIdx = argv.indexOf('--to');
@@ -157,16 +157,18 @@ if (has(srcMem)) {
 } else log('   （导出包里没有记忆数据，跳过）');
 
 // 5. 桌面端设置：只合并 recentProjects（侧栏项目列表）——不覆盖新机其他设置
-log('\n5. 桌面端项目列表（v2/setting.json 的 recentProjects）');
 const v2Src = path.join(IN, 'zcode-cli', 'v2-setting.json');
 const v2Dst = path.join(HOME, '.zcode', 'v2', 'setting.json');
 if (has(v2Src)) {
   try {
+    // 兼容旧导出包：v2-setting.json 曾被错误写成目录（里面才是 setting.json）
+    const srcFile = fs.statSync(v2Src).isDirectory() ? path.join(v2Src, 'setting.json') : v2Src;
+    if (!has(srcFile)) throw new Error('源文件不存在（' + v2Src + '）');
     fs.mkdirSync(path.dirname(v2Dst), { recursive: true });
-    const srcList = JSON.parse(fs.readFileSync(v2Src, 'utf8')).recentProjects || [];
+    const srcList = JSON.parse(fs.readFileSync(srcFile, 'utf8')).recentProjects || [];
     if (!srcList.length) log('   （导出包设置里没有项目列表，跳过）');
     else if (!has(v2Dst)) {
-      fs.copyFileSync(v2Src, v2Dst);
+      fs.copyFileSync(srcFile, v2Dst);
       ok(`桌面端项目列表已恢复（${srcList.length} 个项目）`);
     } else {
       // 合并：源列表在前、目标已有的排后去重；其余字段保持目标机现状
@@ -180,43 +182,53 @@ if (has(v2Src)) {
       ok(`桌面端项目列表已合并（原 ${before} 个，新增 ${added} 个，总数 ${dstCfg.recentProjects.length}；原文件留底 .bak-migrate）`);
       log('   合并后列表：' + dstCfg.recentProjects.join(' | '));
     }
-  } catch (e) { logErr('   ✗ 桌面端项目列表异常', e); fail('桌面端项目列表', String(e).split('\n')[0], '可手动把 zcode-cli/v2-setting.json 的 recentProjects 抄进新机同名文件'); }
-} else log('   （导出包里没有桌面端设置，跳过——请刷新 U 盘导出包后重试）');
+  } catch (e) { logErr('   ✗ 桌面端项目列表异常', e); fail('桌面端项目列表', String(e).split('\n')[0], '可手动把 zcode-cli/v2-setting.json 里的 recentProjects 抄进新机同名文件'); }
+}
 
-// 6. 会话数据库（全部对话记录）：必须先关闭 ZCode；目标已有库先备份
-log('\n6. ZCode 会话数据库（全部对话记录）');
+// 6. 会话数据库（全部对话记录）：必须先关闭 ZCode；三件套原子替换——
+//    先拷成 *.importing 临时名，全部成功后统一改名生效；任何一步失败自动清理，
+//    旧库原封不动（绝不允许"新主库+旧 WAL"的半套不一致状态）。
+log('\n6. ZCode 会话数据库（全部对话记录，三件套原子替换）');
 const srcDb = path.join(IN, 'zcode-cli', 'db');
 const dstDb = path.join(HOME, '.zcode', 'cli', 'db');
 const DB_FILES = ['db.sqlite', 'db.sqlite-shm', 'db.sqlite-wal'];
 if (has(path.join(srcDb, 'db.sqlite'))) {
-  const dstMain = path.join(dstDb, 'db.sqlite');
-  log(`   锁检测 ${dstMain}：${isLocked(dstMain) ? '被占用' : '空闲'}`);
-  if (isLocked(dstMain)) {
-    fail('会话数据库恢复', '目标文件被占用（ZCode 正在运行）',
-      '请完全退出 ZCode（含托盘/后台进程）后，重新双击「一键还原」重试');
+  const existing = DB_FILES.filter((f) => has(path.join(dstDb, f)));
+  const locked = existing.filter((f) => isLocked(path.join(dstDb, f)));
+  log(`   目标现有：${existing.join(', ') || '（无）'}；锁检测：${locked.length ? '被占用 → ' + locked.join(', ') : '全部空闲'}`);
+  if (locked.length) {
+    fail('会话数据库恢复', '目标文件被占用（ZCode 或其后台进程正在运行）→ ' + locked.join(', '),
+      '请完全退出 ZCode（含托盘/后台进程，任务管理器确认无 zcode 进程）后重新双击「一键还原」');
   } else {
+    const temps = [];
     try {
-      if (has(dstMain)) {
+      for (const f of DB_FILES) {
+        const src = path.join(srcDb, f);
+        if (!has(src)) { log(`   - 跳过 ${f}（导出包中没有）`); continue; }
+        const tmp = path.join(dstDb, f + '.importing');
+        fs.mkdirSync(dstDb, { recursive: true });
+        fs.copyFileSync(src, tmp);
+        temps.push({ f, tmp });
+        log(`   - 已拷贝 ${f}（${(fs.statSync(tmp).size / 1024 / 1024).toFixed(1)} MB）→ 待生效`);
+      }
+      if (!temps.length) throw new Error('一个文件都没拷上');
+      // 全部拷贝成功 → 备份旧库 → 原子改名生效
+      if (existing.length) {
         const bak = path.join(HOME, '.zcode', 'backup-migrate-' + Date.now());
         fs.mkdirSync(bak, { recursive: true });
-        for (const f of DB_FILES) if (has(path.join(dstDb, f))) fs.copyFileSync(path.join(dstDb, f), path.join(bak, f));
-        log('   已备份新机现有会话库 → ' + bak);
+        for (const f of existing) fs.copyFileSync(path.join(dstDb, f), path.join(bak, f));
+        log('   旧库已备份 → ' + bak);
+        for (const f of existing) { try { fs.unlinkSync(path.join(dstDb, f)); } catch {} }
       }
-      fs.mkdirSync(dstDb, { recursive: true });
-      let copied = 0;
-      for (const f of DB_FILES)
-        if (cp(path.join(srcDb, f), path.join(dstDb, f))) {
-          copied++;
-          log(`   - ${f}（${(fs.statSync(path.join(dstDb, f)).size / 1024 / 1024).toFixed(1)} MB）`);
-        }
-      copied ? ok(`会话数据库已恢复（${copied} 个文件，全部对话记录）`)
-             : fail('会话数据库恢复', '拷贝失败（源文件存在但一个都没拷上）');
+      for (const { f, tmp } of temps) fs.renameSync(tmp, path.join(dstDb, f));
+      ok(`会话数据库已恢复（${temps.length} 个文件原子生效，全部对话记录）`);
     } catch (e) {
+      for (const { tmp } of temps) { try { fs.unlinkSync(tmp); } catch {} } // 清理半成品，旧库保持原样
       const msg = String(e);
-      logErr('   ✗ 会话数据库异常', e);
+      logErr('   ✗ 会话数据库异常（已回滚，旧库未动）', e);
       fail('会话数据库恢复', msg.split('\n')[0],
-        ['EBUSY', 'EPERM', 'EACCES'].some((c) => msg.includes(c))
-          ? '请完全退出 ZCode 后重新双击「一键还原」重试'
+        ['EBUSY', 'EPERM', 'EACCES', 'UNKNOWN'].some((c) => msg.includes(c))
+          ? '常见原因：ZCode 后台进程或杀毒软件瞬时占用。等 10 秒重试一次；仍失败请完全退出 ZCode 后重跑'
           : '检查 ~/.zcode/cli/db 目录权限');
     }
   }
