@@ -73,6 +73,28 @@ if (!cl.includes(`## [${next}]`)) {
   console.log('CHANGELOG 已有条目');
 }
 
+// —— 3.5 README 同步检查：版本引用自动替换 + 人工确认清单 ——
+console.log('\n[3.5/6] README 同步检查...');
+const readmePath = ROOT + '/README.md';
+let readme = fs.readFileSync(readmePath, 'utf8');
+const verRefRe = /v(\d+\.\d+\.\d+)/g;
+let refReplaced = 0;
+readme = readme.replace(verRefRe, (m, v) => {
+  if (v === next) return m;
+  refReplaced++;
+  return `v${next}`;
+});
+if (refReplaced > 0) {
+  fs.writeFileSync(readmePath, readme);
+  console.log(`README 中 ${refReplaced} 处版本号引用已同步为 v${next}（请人工核对语境是否恰当）`);
+} else {
+  console.log('README 无具体版本号引用需要替换');
+}
+console.log('⚠ 人工确认清单（发版三件套）：');
+console.log('  1. README「功能」清单是否需要补充本版新功能条目');
+console.log('  2. docs/lessons.md 是否有新的 bug 根因教训需要归档');
+console.log('  3. README「后续路线」是否需要勾选已完成项');
+
 // —— 4. 构建前端 ——
 console.log('\n[4/6] 构建前端...');
 run('npm --prefix web run build');

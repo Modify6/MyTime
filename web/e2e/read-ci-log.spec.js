@@ -1,25 +1,25 @@
 import { test } from '@playwright/test';
 import fs from 'node:fs';
 
-test('读取 CI 日志页诊断', async ({ page }) => {
+test('展开 CI 日志读取 E2E 失败详情', async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto('https://github.com/Modify6/MyTime/actions/runs/42289319969/job/128138415453');
-  await page.waitForTimeout(5000);
+  await page.goto('https://github.com/Modify6/MyTime/actions/runs/42291816946/job/128147039745');
+  await page.waitForTimeout(6000);
 
-  // 展开所有折叠的日志步骤
-  const toggles = await page.locator('summary, .step-summary, [aria-expanded="false"]').all();
-  for (const t of toggles.slice(0, 20)) {
-    try { await t.click({ timeout: 1000 }); } catch {}
-  }
-  await page.waitForTimeout(3000);
+  // 点击"运行端到端测试"步骤展开日志
+  const step = page.getByText('运行端到端测试（失败自动重试一轮）').first();
+  try { await step.click({ timeout: 5000 }); } catch {}
+  await page.waitForTimeout(2000);
 
-  // 滚动到底触发日志懒加载
-  for (let i = 0; i < 10; i++) {
+  // 滚动加载全部日志
+  for (let i = 0; i < 15; i++) {
     await page.keyboard.press('End');
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(600);
   }
 
   const text = await page.evaluate(() => document.body.innerText);
-  const lines = text.split('\n').filter((l) => l.includes('E2E_FAIL') || l.includes('ERR:'));
-  fs.writeFileSync('E:/study/zi/MyTime/.ci-log.txt', 'LINES:' + lines.length + '\n' + lines.join('\n') + '\n\n=== 全文长度 ' + text.length + ' ===\n' + text.slice(0, 500));
+  const lines = text.split('\n').filter((l) =>
+    l.includes('E2E_FAIL') || l.includes('ERR:') || l.includes('✘') || l.includes('failed') || l.includes('Error')
+  );
+  fs.writeFileSync('E:/study/zi/MyTime/.ci-log.txt', '命中 ' + lines.length + ' 行\n' + lines.slice(0, 30).join('\n') + '\n\n=== 全文长度 ' + text.length + ' ===');
 });
