@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openDb, pushChanges, pullSince, exportAll, createBackupSnapshot, listBackups, isBackupName } from './db.js';
+import { openDb, pushChanges, pullSince, exportAll, createBackupSnapshot, listBackups, isBackupName, TABLES } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3128);
