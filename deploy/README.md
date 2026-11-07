@@ -1,0 +1,54 @@
+# 公网部署指南（路线 A：云 VPS + 域名）
+
+> 前置：已购买轻量应用服务器（Ubuntu 24.04）与域名，域名 ICP 备案已通过。
+
+## 一次性准备（本地电脑）
+
+```bash
+cd deploy
+cp deploy.config.example config   # 然后编辑 config 填真实值
+```
+
+`deploy/config` 需要填写：
+
+| 变量 | 填什么 |
+|---|---|
+| SERVER_HOST | 服务器公网 IP |
+| SERVER_USER | SSH 用户（轻量默认 `ubuntu`） |
+| SERVER_PORT | SSH 端口（默认 22） |
+| DOMAIN | 你的域名（如 `mytime.example.com`，不要带 https://） |
+| APP_PORT | 保持 3128 |
+| ALLOWED_ORIGIN | 填 `https://你的域名`（CORS 收紧到自己的站点） |
+
+并在域名控制台添加 **A 记录**：`@`（或子域名）→ 服务器公网 IP。
+
+## 部署（本地电脑一条命令）
+
+```bash
+bash deploy/upload.sh
+```
+
+自动完成：上传代码 → 服务器安装 Node 22 + Caddy → npm 构建前端 → systemd 服务（开机自启/崩溃重启）→ **自动生成强密码**（只打印一次，抄下来）→ Caddy 反代 + 自动签 HTTPS 证书 → 本机健康检查。
+
+## 验证
+
+- 浏览器打开 `https://你的域名` → 出现登录页（浏览器地址栏有锁 = HTTPS 生效）
+- App/网页设置页：服务器地址填 `https://你的域名`，密码填部署时打印的 `MYTIME_PASSWORD`
+- 旧设备数据迁移：旧电脑 `server/data/mytime.db` 拷贝到 VPS 的 `/opt/mytime/server/data/` 后 `systemctl restart mytime`；或用 App 内导出 JSON → 新环境导入
+
+## 常用运维（在 VPS 上）
+
+```bash
+systemctl status mytime        # 服务状态
+systemctl restart mytime       # 重启
+journalctl -u mytime -f        # 看日志
+ls /opt/mytime/server/data/backups/   # 每日快照（保留 30 份）
+```
+
+## 安全清单（部署后立即确认）
+
+- [ ] `MYTIME_PASSWORD` 为强随机串（部署脚本自动生成，勿改回弱密码）
+- [ ] 云防火墙只放行 22/80/443，其余端口关闭
+- [ ] `server/.env` 权限 600（脚本已设置）
+- [ ] SSH 建议改用密钥登录并禁用密码（可选加固）
+- [ ] 域名解析与备案状态正常

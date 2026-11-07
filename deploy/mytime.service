@@ -1,0 +1,19 @@
+[Unit]
+Description=MyTime sync server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mytime/server
+ExecStart=/usr/local/bin/node src/index.js
+EnvironmentFile=/opt/mytime/server/.env
+Restart=always
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/mytime/server/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

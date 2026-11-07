@@ -1,0 +1,19 @@
+# MyTime 部署配置模板
+# 复制为 deploy/config 并填写真实值后，再执行 upload.sh 与 server-setup.sh
+# （deploy/config 含密码类信息，已被 .gitignore 排除，不会提交）
+
+# 服务器公网 IP
+SERVER_HOST=127.0.0.1
+# SSH 登录用户（轻量服务器默认 ubuntu 或 root）
+SERVER_USER=ubuntu
+# SSH 端口
+SERVER_PORT=22
+
+# 你的域名（无需 https:// 前缀；DNS A 记录解析到 SERVER_HOST 后 Caddy 自动签证书）
+DOMAIN=mytime.example.com
+
+# 同步服务端口（服务器本机，Caddy 反代到它；一般不改）
+APP_PORT=3128
+
+# CORS 允许来源（填 https://你的域名；不填=允许任意来源，公网不建议）
+ALLOWED_ORIGIN=https://mytime.example.com

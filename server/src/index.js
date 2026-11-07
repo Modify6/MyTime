@@ -15,13 +15,18 @@ const PASSWORD = process.env.MYTIME_PASSWORD || 'mytime123';
 // 由密码派生 token，服务端无会话状态；改密码即全部失效
 const TOKEN = crypto.createHmac('sha256', PASSWORD).update('mytime-token-v1').digest('hex');
 
-const app = Fastify({ logger: false, bodyLimit: 10 * 1024 * 1024 });
+const app = Fastify({
+  logger: false,
+  bodyLimit: 10 * 1024 * 1024,
+  trustProxy: true, // 反代（Caddy）后取真实客户端 IP
+});
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const backupsDir = path.join(dataDir, 'backups');
 const clientLogDir = path.join(dataDir, 'client-logs');
 const db = openDb(dataDir);
 
-await app.register(cors, { origin: true });
+// CORS：默认允许任意来源（局域网/开发）；公网部署设 ALLOWED_ORIGIN 收紧为站点域名
+await app.register(cors, { origin: process.env.ALLOWED_ORIGIN || true });
 
 // 生产模式：托管 web/dist（SPA fallback），开发模式该目录不存在则跳过
 const distDir = path.join(__dirname, '..', '..', 'web', 'dist');
