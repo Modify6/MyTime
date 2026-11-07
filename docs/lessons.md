@@ -86,3 +86,10 @@
 - **根因**：三个叠加。① 多个 spec 的调试辅助把产物写到硬编码 `E:/study/zi/MyTime/...`，Linux runner 上 `fs.writeFileSync` 直接 ENOENT，且这些写入在 step 的 catch/收尾里执行，一炸就把整条测试判死；② `e2e-summary.mjs` 的正则字面量里混进了真实换行（`replace(/↵/g)`），失败摘要脚本从未成功运行过——掩盖了 ① 的真实报错，逼出用浏览器爬 CI 日志的一次性 spec；③ 那个一次性 spec（read-ci-log）硬编码旧 run URL，本身又成了 CI 失败项。
 - **修复**：新增 `web/e2e/helpers/debug.mjs` 统一产物路径（`path.resolve(process.cwd(),'..')` 跨平台）且所有调试写入吞错告警；删除一次性 spec；修正摘要脚本正则。
 - **教训**：测试辅助代码也是被测代码的一部分，任何平台假设（盘符、绝对路径）都会在 CI 上兑现为失败；"调试逻辑的失败不应影响测试结果"要用 try/catch 明确保证，而不是默认它不会坏；把失败归因为"偶发"之前，先确保诊断管道本身（摘要脚本）是能跑通的。
+
+## 13. SSH 全链路故障：Workbench 拒登、密钥签名失败、客户端静默降级（v0.9.0 当日）
+
+- **现象**：Workbench 密码登录恒失败；本地密钥 ssh 报 `Permission denied (publickey,password)`；服务器 auth.log 只有 `Failed password`，没有 `Failed publickey`；非交互 ssh 偶发"挂起"。
+- **根因（三层叠加，全部在客户端/入口侧，服务器配置无辜）**：① sshd 层密钥从未生效前 Workbench 密码登录撞上 `publickey` 单路认证（早期误判为密码错）；② 部署私钥带 passphrase 且无人知晓——`Server accepts key` 后需要口令解密私钥才能签名，BatchMode 下直接失败、交互下表现为"卡住"（在等口令输入）；③ Git Bash(MSYS) 的 chmod 在 Windows 盘上是空操作，私钥 0644 被 OpenSSH 拒载——`Offering public key` 能发出（用 .pub），签名这步静默失败坠落密码提示，制造了 `Failed password` 的误导性日志。
+- **修复链**：控制台重置密码 → VNC 进入 → authorized_keys 补写公钥 → 本地重新生成**无口令**部署密钥（v3）→ icacls 收 ACL → 改用 Windows 自带 OpenSSH（按 ACL 校验，`cygpath -m` 转路径）；upload.sh 增加 SSH_CMD 解析优先用 Windows OpenSSH。
+- **教训**：① `Server accepts key` 但 `Permission denied` = 签名环节出了问题（passphrase/私钥加载失败），不是服务器拒绝；② auth.log 只有 `Failed password` 而没有 `Failed publickey` 时，说明密钥根本没被出示——查客户端；③ 诊断输出被 `head` 截断会吃掉关键告警（`UNPROTECTED PRIVATE KEY FILE`），排障时保留完整 stderr；④ 探测脚本用 `BatchMode=yes` 只试密钥，会把"仅支持密码"误判成"仅支持密钥"——方法列表要结合 `-v` 全文读。

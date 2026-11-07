@@ -13,6 +13,18 @@ source deploy/config
 : "${DOMAIN:?DOMAIN 未设置}"
 
 echo "== 上传代码到 $SERVER_USER@$SERVER_HOST:/opt/mytime =="
+# SSH 解析：Git Bash(MSYS) 对 Windows 盘上的私钥收紧不了权限，OpenSSH 会拒载私钥
+# （表现为 Server accepts key 却签名失败）——优先用 Windows 自带 OpenSSH（按 ACL 校验）
+# 部署密钥：.ssh-key/id_ed25519（v3，无口令；服务器端在 root 的 authorized_keys）
+if [ -x "/c/Windows/System32/OpenSSH/ssh.exe" ]; then
+  SSH_CMD="/c/Windows/System32/OpenSSH/ssh.exe"
+  KEY_WIN=$(cygpath -m "$PWD/.ssh-key/id_ed25519")
+  SSH_OPTS=(-i "$KEY_WIN" -o IdentitiesOnly=yes)
+else
+  SSH_CMD="ssh"
+  SSH_OPTS=(-i "$PWD/.ssh-key/id_ed25519" -o IdentitiesOnly=yes)
+fi
+
 # tar over ssh（Windows Git Bash 无 rsync）；排除依赖/构建产物/数据/敏感文件
 tar -czf - \
   --exclude=./.git \
@@ -27,11 +39,11 @@ tar -czf - \
   --exclude=./server/data-backup \
   --exclude=./.debug-state.json \
   --exclude=./.apk-version \
-  . | ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+  . | "$SSH_CMD" "${SSH_OPTS[@]}" -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
   "sudo mkdir -p /opt/mytime && sudo tar -xzf - -C /opt/mytime && sudo chown -R root:root /opt/mytime"
 
 echo "== 远端执行 server-setup.sh（装 Node/Caddy、构建、systemd、Caddy 自动 HTTPS）=="
-ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+"$SSH_CMD" "${SSH_OPTS[@]}" -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
   "cd /opt/mytime && sudo DOMAIN='$DOMAIN' APP_PORT='${APP_PORT:-3128}' bash deploy/server-setup.sh"
 
 echo
