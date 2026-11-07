@@ -128,6 +128,30 @@ if (has(srcMem)) {
   console.log('   （导出包里没有记忆数据，跳过）');
 }
 
+// 5.5 桌面端设置：只合并 recentProjects（侧栏项目列表）——不覆盖新机其他设置
+const v2Src = path.join(IN, 'zcode-cli', 'v2-setting.json');
+const v2Dst = path.join(HOME, '.zcode', 'v2', 'setting.json');
+if (has(v2Src)) {
+  try {
+    fs.mkdirSync(path.dirname(v2Dst), { recursive: true });
+    const srcList = JSON.parse(fs.readFileSync(v2Src, 'utf8')).recentProjects || [];
+    if (!srcList.length) {
+      console.log('   （导出包设置里没有项目列表，跳过）');
+    } else if (!has(v2Dst)) {
+      fs.copyFileSync(v2Src, v2Dst);
+      ok(`桌面端项目列表已恢复（${srcList.length} 个项目）`);
+    } else {
+      // 合并：源列表在前、目标已有的排后去重；其余字段保持目标机现状
+      const dstCfg = JSON.parse(fs.readFileSync(v2Dst, 'utf8'));
+      const dstList = dstCfg.recentProjects || [];
+      dstCfg.recentProjects = [...new Set([...srcList, ...dstList])];
+      fs.copyFileSync(v2Dst, v2Dst + '.bak-migrate'); // 留底
+      fs.writeFileSync(v2Dst, JSON.stringify(dstCfg, null, 2), 'utf8');
+      ok(`桌面端项目列表已合并（新增 ${dstCfg.recentProjects.length - dstList.length} 个，总数 ${dstCfg.recentProjects.length}；原文件留底 .bak-migrate）`);
+    }
+  } catch (e) { fail('桌面端项目列表', String(e).split('\n')[0], '可手动把 zcode-cli/v2-setting.json 的 recentProjects 抄进新机同名文件'); }
+}
+
 // 6. 会话数据库（全部对话记录）：必须先关闭 ZCode；目标已有库先备份
 console.log('\n5. ZCode 会话数据库（全部对话记录）');
 const srcDb = path.join(IN, 'zcode-cli', 'db');

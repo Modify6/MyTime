@@ -63,13 +63,16 @@ if (cpDir(path.join(ROOT, 'server', 'data'), path.join(OUT, 'server-data')))
 if (cpDir(path.join(ROOT, '.zcode', 'plans'), path.join(OUT, 'project-zcode', 'plans')))
   manifest.push('project-zcode/plans —— 计划模式文件');
 
-// 5. ZCode 记忆（全部项目，不只 MyTime）+ 会话数据库（本就包含全部对话）
+// 5. ZCode 记忆（全部项目，不只 MyTime）+ 会话数据库（本就包含全部对话）+ 桌面端项目列表
 const memProjects = path.join(HOME, '.zcode', 'cli', 'memories', 'projects');
 if (fs.existsSync(memProjects)) {
   const keys = fs.readdirSync(memProjects).filter((d) => fs.statSync(path.join(memProjects, d)).isDirectory());
   if (cpDir(memProjects, path.join(OUT, 'zcode-cli', 'memories', 'projects')) && keys.length)
     manifest.push(`zcode-cli/memories/projects —— AI 记忆（全部 ${keys.length} 个项目键：${keys.join(', ')}）`);
 }
+// 桌面端侧栏「项目」列表不在会话库里，而在 v2/setting.json 的 recentProjects——单独导出
+if (cp(path.join(HOME, '.zcode', 'v2', 'setting.json'), path.join(OUT, 'zcode-cli', 'v2-setting.json')))
+  manifest.push('zcode-cli/v2-setting.json —— 桌面端设置（含侧栏 recentProjects 项目列表，导入时只合并该项）');
 let dbCopied = 0;
 for (const f of ['db.sqlite', 'db.sqlite-shm', 'db.sqlite-wal'])
   if (cp(path.join(HOME, '.zcode', 'cli', 'db', f), path.join(OUT, 'zcode-cli', 'db'))) dbCopied++;
