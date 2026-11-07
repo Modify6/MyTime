@@ -85,8 +85,9 @@ export const useTimerStore = defineStore('timer', {
       }
       return ev;
     },
-    async stopCurrent({ note, goalId } = {}) {
-      const ev = this.runningEvent;
+    async stopCurrent({ note, goalId, eventId } = {}) {
+      // eventId：并行计时场景指定结束哪一条（默认结束 running[0]）
+      const ev = eventId ? this.running.find((e) => e.id === eventId) : this.runningEvent;
       if (!ev) return null;
       const patch = { ...ev, endAt: Date.now() };
       if (note !== undefined) patch.note = note;

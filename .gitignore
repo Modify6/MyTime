@@ -22,6 +22,10 @@ MyTime.apk
 .net-raw.txt
 .net-hit.txt
 
+# E2E 调试产物
+.debug-*
+.fail-*
+
 # Playwright 产物
 test-results/
 

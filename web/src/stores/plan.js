@@ -88,27 +88,45 @@ export const usePlanStore = defineStore('plan', {
       });
     },
 
-    // —— 调度核心：启动（支持对当前计划的挂起/结束，原因必填） ——
+    // —— 调度核心：启动（处置全部运行中计时，原因必填） ——
     async start(id, handoff = null) {
+      await this.load(); // 先回读库，避免依赖 watch 延迟导致拿到旧状态
       const plan = this.byId(id);
       if (!plan || plan.deleted) throw new Error('计划不存在');
-      if (!CAN_TRANSITION[plan.status].includes('active')) throw new Error(`当前状态(${plan.status})不能启动`);
 
       const timer = useTimerStore();
-      const runningEv = timer.runningEvent;
-      if (runningEv && runningEv.planId === id) return; // 已在执行该计划
-      if (runningEv) {
-        // 有其他执行中：必须给出处置方式与原因
+      // 强制刷新：拉取含跨设备事件的最新运行状态，缩小竞态窗口
+      await timer.refresh();
+
+      if (timer.running.some((e) => e.planId === id)) {
+        // 已在执行该计划：修复状态错位；存在并行计时（跨设备产生）时仅处置其他事件
+        if (plan.status !== 'active') {
+          await putRow('plans', { ...plan, status: 'active' });
+          await this.appendLog(id, 'resume', null);
+        }
+        if (timer.running.length > 1) {
+          if (!handoff?.action) throw new Error('当前有执行中的任务，请选择挂起或结束并填写原因');
+          await this._settleAllRunning(
+            handoff.action === 'finish' ? 'done' : 'paused',
+            handoff.action === 'finish' ? 'done' : 'pause',
+            handoff.reason,
+            id
+          );
+        }
+        return;
+      }
+
+      if (!CAN_TRANSITION[plan.status].includes('active')) throw new Error(`当前状态(${plan.status})不能启动`);
+
+      if (timer.running.length) {
+        // 有运行中的计时：必须处置全部（挂起 or 结束），原因必填
         if (handoff?.action === 'finish') {
-          await this._stopActive('done', 'done', handoff.reason);
+          await this._settleAllRunning('done', 'done', handoff.reason);
         } else if (handoff?.action === 'pause') {
-          await this._stopActive('paused', 'pause', handoff.reason);
+          await this._settleAllRunning('paused', 'pause', handoff.reason);
         } else {
           throw new Error('当前有执行中的任务，请选择挂起或结束并填写原因');
         }
-      } else if (timer.running.length) {
-        // 手动打卡的运行中事件（无计划归属）：直接结束落账
-        await timer.stopCurrent();
       }
 
       await timer.start({
@@ -123,7 +141,39 @@ export const usePlanStore = defineStore('plan', {
       logInfo('plan', `${plan.status === 'paused' ? '恢复' : '启动'}计划「${plan.title}」`);
     },
 
-    // —— 挂起 / 完成 / 取消 ——
+    // 手动打卡统一调度：按 handoff 处置全部运行中计时（有计划的迁移状态，手动的落账）
+    async settleRunning(handoff) {
+      if (!handoff?.action) throw new Error('请选择挂起或结束并填写原因');
+      await this._settleAllRunning(
+        handoff.action === 'finish' ? 'done' : 'paused',
+        handoff.action === 'finish' ? 'done' : 'pause',
+        handoff.reason
+      );
+    },
+
+    // 处置全部运行中计时：有计划归属的按状态机迁移，手动打卡直接结束落账（被抢占说明写入备注）
+    async _settleAllRunning(newStatus, logAction, reason = null, excludePlanId = null) {
+      const timer = useTimerStore();
+      for (const ev of [...timer.running]) {
+        if (excludePlanId && ev.planId === excludePlanId) continue; // 保留该计划的计时段
+        if (ev.planId) {
+          const owner = this.byId(ev.planId);
+          if (owner && CAN_TRANSITION[owner.status].includes(newStatus)) {
+            await putRow('plans', {
+              ...owner,
+              status: newStatus,
+              pauseReason: logAction === 'pause' ? reason || owner.pauseReason : owner.pauseReason,
+              endReason: logAction !== 'pause' ? reason || owner.endReason : owner.endReason,
+            });
+            await this.appendLog(owner.id, logAction, reason);
+          }
+        }
+        const preNote = ev.note ? `${ev.note}；` : '';
+        await timer.stopCurrent({ eventId: ev.id, note: `${preNote}被抢占：${reason || '未填写原因'}` });
+      }
+    },
+
+    // —— 挂起 / 完成 / 取消（仅作用于 active 计划的当前段） ——
     async pauseActive(reason = null) {
       await this._stopActive('paused', 'pause', reason);
     },
@@ -141,8 +191,9 @@ export const usePlanStore = defineStore('plan', {
       logInfo('plan', `计划「${plan.title}」→ ${status}`);
     },
 
-    // 内部：结束当前计时段并迁移计划状态
+    // 内部：结束 active 计划的当前计时段并迁移计划状态
     async _stopActive(newStatus, logAction, reason = null) {
+      await this.load(); // 先回读库，避免依赖 watch 延迟导致拿到旧状态
       const plan = this.activePlan;
       if (!plan) return;
       const timer = useTimerStore();

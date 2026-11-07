@@ -66,7 +66,7 @@ test('计划调度全流程：预排/挂起/抢占/恢复/完成', async ({ page
     await page.waitForTimeout(800);
   });
   await step('调度确认结束临时B', async () => {
-    await page.locator('.van-popup:visible').getByText('结束当前').click();
+    await page.locator('.van-popup:visible').getByText('全部结束').click();
     await page.locator('.van-popup:visible').getByText('当前计划不再继续').click();
     await page.locator('.van-popup:visible').getByRole('button', { name: '确认并启动新计划' }).click();
     await page.waitForTimeout(800);

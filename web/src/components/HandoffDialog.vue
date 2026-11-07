@@ -1,5 +1,6 @@
 <script setup>
-// 调度弹窗：启动新计划时若当前有执行中的计划，强制处置——挂起（填原因）或 结束并完成（填原因）
+// 调度弹窗：启动新事项（计划或手动打卡）时若有运行中的计时，强制处置——全部挂起（填原因）或 全部结束（填原因）
+// 柳比歇夫原则：同一时刻只有一件事执行，列出全部运行中计时逐条明示去向
 import { ref, computed, watch } from 'vue';
 import { usePlanStore } from '../stores/plan.js';
 import { useTimerStore } from '../stores/timer.js';
@@ -7,16 +8,32 @@ import { fmtDur } from '../lib/time.js';
 
 const props = defineProps({
   show: Boolean,
-  newPlan: { type: Object, default: null }, // 即将启动的计划
+  newPlan: { type: Object, default: null }, // 即将启动的计划（手动打卡时为 null）
+  newLabel: { type: String, default: '' }, // 手动打卡场景：即将开始的描述，如「开始打卡：学习」
 });
 const emit = defineEmits(['update:show', 'confirm']);
 
 const planStore = usePlanStore();
 const timer = useTimerStore();
-const current = computed(() => planStore.activePlan);
 
 const PAUSE_REASONS = ['临时插入更紧急的事', '等待外部条件', '被他人打断', '先处理其他事'];
 const FINISH_REASONS = ['按计划完成', '提前完成', '当前计划不再继续'];
+
+// 全部运行中计时（含其他设备同步来的并行事件）
+const runningItems = computed(() =>
+  timer.running.map((ev) => {
+    const plan = planStore.byId(ev.planId);
+    return {
+      ev,
+      elapsed: Math.max(0, timer.now - ev.startAt),
+      source: plan ? `计划 · ${plan.kind === 'planned' ? '提前规划' : '临时'}` : '手动打卡',
+    };
+  })
+);
+
+const headTitle = computed(() =>
+  props.newPlan ? `调度：启动「${props.newPlan.title}」` : props.newLabel ? `调度：${props.newLabel}` : '调度'
+);
 
 const mode = ref('pause'); // pause | finish
 const reason = ref('');
@@ -53,20 +70,29 @@ function confirm() {
     class="popup-safe"
     @update:show="(v) => emit('update:show', v)"
   >
-    <div class="handoff" v-if="current && newPlan">
-      <div class="sheet-title">调度：启动「{{ newPlan.title }}」</div>
-      <div class="current-box">
-        当前执行中：<b>{{ current.title }}</b>
-        <span class="muted">（已计入 {{ fmtDur(timer.elapsedMs) }}）</span>
+    <div class="handoff" v-if="runningItems.length">
+      <div class="sheet-title">{{ headTitle }}</div>
+      <div class="list-box">
+        <div class="list-head">
+          当前有 {{ runningItems.length }} 个计时进行中，启动后将全部处置：
+        </div>
+        <div v-for="it in runningItems" :key="it.ev.id" class="run-row">
+          <div class="run-main">
+            <b>{{ it.ev.title }}</b>
+            <span class="src" :class="{ manual: !it.ev.planId }">{{ it.source }}</span>
+          </div>
+          <span class="muted">已计 {{ fmtDur(it.elapsed) }}</span>
+          <span class="dest" :class="mode">{{ mode === 'pause' ? '→ 挂起' : '→ 结束落账' }}</span>
+        </div>
       </div>
 
       <div class="mode-row">
         <button class="mode-btn" :class="{ active: mode === 'pause' }" @click="mode = 'pause'">
-          <b>挂起当前</b>
+          <b>全部挂起</b>
           <span>稍后回来继续</span>
         </button>
         <button class="mode-btn finish" :class="{ active: mode === 'finish' }" @click="mode = 'finish'">
-          <b>结束当前</b>
+          <b>全部结束</b>
           <span>完成并落账</span>
         </button>
       </div>
@@ -88,7 +114,7 @@ function confirm() {
       <div class="err" v-if="reasonError">{{ reasonError }}</div>
 
       <van-button type="primary" block round :disabled="!!reasonError" @click="confirm">
-        确认并启动新计划
+        确认并{{ newPlan ? '启动新计划' : '开始新打卡' }}
       </van-button>
     </div>
   </van-popup>
@@ -103,12 +129,52 @@ function confirm() {
   font-weight: 700;
   margin-bottom: 10px;
 }
-.current-box {
+.list-box {
   background: var(--card-2);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 13px;
   margin-bottom: 12px;
+}
+.list-head {
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.run-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.run-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+.src {
+  font-size: 11px;
+  color: #f5a623;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  flex: none;
+}
+.src.manual {
+  color: var(--text-3);
+}
+.dest {
+  font-size: 12px;
+  font-weight: 600;
+}
+.dest.pause {
+  color: var(--brand);
+}
+.dest.finish {
+  color: var(--danger);
 }
 .mode-row {
   display: flex;

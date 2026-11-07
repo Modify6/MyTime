@@ -6,6 +6,7 @@ import { useTimerStore } from '../stores/timer.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import { usePlanStore } from '../stores/plan.js';
 import PauseReasonDialog from '../components/PauseReasonDialog.vue';
+import HandoffDialog from '../components/HandoffDialog.vue';
 import { getEventsBetween, getAllEvents, onChange } from '../db/repo.js';
 import { dayRange, fmtClock, fmtDur } from '../lib/time.js';
 import { byCategory, totalMs } from '../stats/aggregate.js';
@@ -48,18 +49,35 @@ const quickItems = computed(() =>
 );
 const recs = computed(() => recommendStart(allEvents.value, Date.now(), 4));
 
-// 一键开始：环绕球 / 推荐卡共用
+// 一键开始：环绕球 / 推荐卡共用（柳比歇夫串行原则：有运行中计时先调度处置）
+const pendingQuick = ref(null);
+const showHandoff = ref(false);
 async function quickStart(item) {
+  await timer.refresh();
   if (timer.running.length) {
-    showToast('已有进行中的计时，请先结束');
+    pendingQuick.value = item;
+    showHandoff.value = true;
     return;
   }
+  await doQuickStart(item);
+}
+async function doQuickStart(item) {
   try {
     await timer.start({ title: item.title, categoryId: item.categoryId, goalId: item.goalId });
     showToast(`已开始：${item.title}`);
     showStart.value = false;
   } catch (e) {
     showToast(e.message || '开始失败');
+  }
+}
+async function onHandoffConfirm(handoff) {
+  const item = pendingQuick.value;
+  pendingQuick.value = null;
+  try {
+    await planStore.settleRunning(handoff);
+    if (item) await doQuickStart(item);
+  } catch (e) {
+    showToast(e.message || '调度失败');
   }
 }
 
@@ -191,6 +209,11 @@ function openEdit(ev) {
     </div>
 
     <PauseReasonDialog v-model:show="showPauseReason" @confirm="({ reason }) => confirmPause(reason)" />
+    <HandoffDialog
+      v-model:show="showHandoff"
+      :new-label="pendingQuick ? `开始打卡：${pendingQuick.title}` : ''"
+      @confirm="onHandoffConfirm"
+    />
     <StartSheet v-model:show="showStart" :recs="recs" @quick="quickStart" />
     <EventEditor v-model:show="showEditor" :event="editing" @saved="load" />
   </div>
@@ -227,13 +250,16 @@ function openEdit(ev) {
 }
 .run-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
   margin-top: 14px;
 }
 .run-actions .van-button {
-  min-width: 100px;
+  flex: 0 1 calc(50% - 4px); /* 窄屏两两换行，结束打卡完整可见 */
+  min-width: 88px;
   padding: 0 12px;
+  margin: 0;
 }
 
 /* 居中的主打卡按钮：呼吸光晕 + 旋转虚线环 */
