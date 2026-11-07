@@ -63,16 +63,12 @@ if (cpDir(path.join(ROOT, 'server', 'data'), path.join(OUT, 'server-data')))
 if (cpDir(path.join(ROOT, '.zcode', 'plans'), path.join(OUT, 'project-zcode', 'plans')))
   manifest.push('project-zcode/plans —— 计划模式文件');
 
-// 5. ZCode 记忆 + 会话数据库
+// 5. ZCode 记忆（全部项目，不只 MyTime）+ 会话数据库（本就包含全部对话）
 const memProjects = path.join(HOME, '.zcode', 'cli', 'memories', 'projects');
 if (fs.existsSync(memProjects)) {
-  let n = 0;
-  for (const dir of fs.readdirSync(memProjects)) {
-    if (!dir.startsWith('mytime-')) continue;
-    cpDir(path.join(memProjects, dir), path.join(OUT, 'zcode-cli', 'memories', 'projects', dir));
-    n++;
-  }
-  if (n) manifest.push(`zcode-cli/memories/projects/mytime-* —— AI 记忆（${n} 个项目键）`);
+  const keys = fs.readdirSync(memProjects).filter((d) => fs.statSync(path.join(memProjects, d)).isDirectory());
+  if (cpDir(memProjects, path.join(OUT, 'zcode-cli', 'memories', 'projects')) && keys.length)
+    manifest.push(`zcode-cli/memories/projects —— AI 记忆（全部 ${keys.length} 个项目键：${keys.join(', ')}）`);
 }
 let dbCopied = 0;
 for (const f of ['db.sqlite', 'db.sqlite-shm', 'db.sqlite-wal'])
