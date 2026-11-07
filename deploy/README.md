@@ -39,11 +39,15 @@ bash deploy/upload.sh
 ## 常用运维（在 VPS 上）
 
 ```bash
+sudo bash /opt/mytime/deploy/server-update.sh   # 版本更新（拉代码→重建前端→重启→健康检查）
 systemctl status mytime        # 服务状态
 systemctl restart mytime       # 重启
 journalctl -u mytime -f        # 看日志
 ls /opt/mytime/server/data/backups/   # 每日快照（保留 30 份）
 ```
+
+> 更新说明：本地 `scripts/release.mjs` 发版推送 GitHub 后，在服务器网页终端跑 `server-update.sh` 即完成线上更新。
+> 只有首次部署或改了 systemd/Caddy 配置才需要重跑 `server-setup.sh`；`server/data`（数据库与备份）不随代码更新变动。
 
 ## 安全清单（部署后立即确认）
 
