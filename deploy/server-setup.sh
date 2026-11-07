@@ -54,21 +54,26 @@ systemctl daemon-reload
 systemctl enable --now mytime
 systemctl restart mytime
 
-echo "== [5/6] Caddy reverse proxy =="
-DOMAIN=${DOMAIN:-}
-[ -n "$DOMAIN" ] || { echo "ERROR: DOMAIN not set"; exit 1; }
-cat > /etc/caddy/Caddyfile <<EOF
+if [ -n "${DOMAIN:-}" ]; then
+  echo "== [5/6] Caddy reverse proxy (HTTPS) =="
+  cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
     reverse_proxy 127.0.0.1:${APP_PORT:-3128}
 }
 EOF
-systemctl enable --now caddy
-systemctl restart caddy
+  systemctl enable --now caddy
+  systemctl restart caddy
+else
+  SERVER_IP=$(curl -fsS --max-time 5 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null || echo '<server-ip>')
+  echo "== [5/6] DOMAIN empty — Caddy skipped (HTTP mode: http://$SERVER_IP:${APP_PORT:-3128}) =="
+  echo "   After ICP filing: set DOMAIN in deploy/config, re-run upload.sh for HTTPS."
+fi
 
 echo "== [6/6] Health check =="
 sleep 2
 curl -fsS "http://127.0.0.1:${APP_PORT:-3128}/api/health" >/dev/null && echo "local health: OK"
-systemctl is-active mytime && systemctl is-active caddy
+systemctl is-active mytime
+[ -n "${DOMAIN:-}" ] && systemctl is-active caddy
 
 echo
 echo "================= DEPLOY DONE ================="
