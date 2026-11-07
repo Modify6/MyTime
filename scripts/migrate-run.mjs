@@ -26,11 +26,16 @@ const isRepo = (p) => p && fs.existsSync(path.join(p, '.git'));
 const readFirst = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split(/\r?\n/)[0] : '');
 const save = (f, v) => fs.writeFileSync(f, v + '\n', 'utf8');
 
-async function ask(question, def) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const a = (await rl.question(question)).trim();
-  rl.close();
-  return a || def || '';
+// 共享一个 readline 实例；stdin 关闭（如管道预置答案用尽）时回退默认值而不是挂死/崩溃
+let _rl = null;
+async function ask(question, def = '') {
+  if (!_rl) _rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const a = (await _rl.question(question)).trim();
+    return a || def;
+  } catch {
+    return def;
+  }
 }
 
 async function locateProject() {
@@ -81,12 +86,19 @@ function runProjectImport(target) {
 }
 
 async function exportZi(zi) {
-  const excludes = [];
-  for (const d of ZI_BIG_DIRS) {
-    if (fs.existsSync(path.join(zi, d))) {
-      const a = await ask(`大目录 ${d}（可能有十几 GB）也要迁移吗？回车=包含，输 n=排除：`);
-      if (a.toLowerCase() === 'n') excludes.push(d);
+  const excludes = process.argv.slice(3)
+    .filter((a) => a.startsWith('--exclude-dir='))
+    .map((a) => a.split('=')[1])
+    .filter(Boolean);
+  if (process.stdin.isTTY) {
+    for (const d of ZI_BIG_DIRS) {
+      if (fs.existsSync(path.join(zi, d)) && !excludes.includes(d)) {
+        const a = await ask(`大目录 ${d}（可能有十几 GB）也要迁移吗？回车=包含，输 n=排除：`);
+        if (a.toLowerCase() === 'n') excludes.push(d);
+      }
     }
+  } else {
+    console.log('[非交互环境] 大目录默认全部包含（可用 --exclude-dir=目录名 排除）');
   }
   console.log(`\n[zi 整拷] ${zi} → ${ZI_PROJECTS}`);
   robocopy(zi, ZI_PROJECTS, excludes);
