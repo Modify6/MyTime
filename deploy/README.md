@@ -36,6 +36,12 @@ bash deploy/upload.sh
 - App/网页设置页：服务器地址填 `https://你的域名`，密码填部署时打印的 `MYTIME_PASSWORD`
 - 旧设备数据迁移：旧电脑 `server/data/mytime.db` 拷贝到 VPS 的 `/opt/mytime/server/data/` 后 `systemctl restart mytime`；或用 App 内导出 JSON → 新环境导入
 
+## SSH 连接约定（v0.9.0 起）
+
+- **登录方式**：仅密钥（密码登录已关闭防爆破）。部署密钥 `本地项目/.ssh-key/id_ed25519`（v3，无口令），服务器端在 `root` 的 `authorized_keys`；`~/.ssh/mytime_deploy` 是同一把的副本（ACL 已收紧）
+- **Git Bash 注意**：MSYS 的 ssh 无法加载 Windows 盘上的私钥（chmod 无效→0644 被拒载），一律用 **Windows 自带 OpenSSH**：`ssh mytime "命令"`（PowerShell/cmd）或 `/c/Windows/System32/OpenSSH/ssh.exe mytime`（Git Bash）；`~/.ssh/config` 已配 `mytime` 主机别名
+- **应急**：阿里云控制台 VNC 连接（不依赖 sshd）；authorized_keys 备份在服务器 `~/.ssh/authorized_keys.bak`
+
 ## 常用运维（在 VPS 上）
 
 ```bash
