@@ -13,7 +13,7 @@ NODE_VER=22.14.0
 [ -d "$APP_DIR/server" ] || { echo "ERROR: $APP_DIR/server not found — upload code first (upload.sh)"; exit 1; }
 
 source "$APP_DIR/deploy/config"
-: "${DOMAIN:?DOMAIN not set in deploy/config}"
+DOMAIN=${DOMAIN:-}
 APP_PORT=${APP_PORT:-3128}
 
 echo "== [1/6] Node $NODE_VER (Tsinghua mirror) =="
