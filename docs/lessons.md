@@ -93,3 +93,10 @@
 - **根因（三层叠加，全部在客户端/入口侧，服务器配置无辜）**：① sshd 层密钥从未生效前 Workbench 密码登录撞上 `publickey` 单路认证（早期误判为密码错）；② 部署私钥带 passphrase 且无人知晓——`Server accepts key` 后需要口令解密私钥才能签名，BatchMode 下直接失败、交互下表现为"卡住"（在等口令输入）；③ Git Bash(MSYS) 的 chmod 在 Windows 盘上是空操作，私钥 0644 被 OpenSSH 拒载——`Offering public key` 能发出（用 .pub），签名这步静默失败坠落密码提示，制造了 `Failed password` 的误导性日志。
 - **修复链**：控制台重置密码 → VNC 进入 → authorized_keys 补写公钥 → 本地重新生成**无口令**部署密钥（v3）→ icacls 收 ACL → 改用 Windows 自带 OpenSSH（按 ACL 校验，`cygpath -m` 转路径）；upload.sh 增加 SSH_CMD 解析优先用 Windows OpenSSH。
 - **教训**：① `Server accepts key` 但 `Permission denied` = 签名环节出了问题（passphrase/私钥加载失败），不是服务器拒绝；② auth.log 只有 `Failed password` 而没有 `Failed publickey` 时，说明密钥根本没被出示——查客户端；③ 诊断输出被 `head` 截断会吃掉关键告警（`UNPROTECTED PRIVATE KEY FILE`），排障时保留完整 stderr；④ 探测脚本用 `BatchMode=yes` 只试密钥，会把"仅支持密码"误判成"仅支持密钥"——方法列表要结合 `-v` 全文读。
+
+## 14. "移除密钥"二次翻车：git rm 换成了内容替换，跟踪从未断开（v0.10.0 当日）
+
+- **现象**：v3 部署私钥（无口令）随功能提交进入公开仓库——而仓库早就为同类事故做过一次"移除"（ed71a52）并配置了 .gitignore。
+- **根因**：ed71a52 的"移除"实际是**内容替换**（diff 显示 12 行改动而非文件删除）——文件从未离开 git 索引；而 **.gitignore 对已跟踪文件完全无效**，后续每次 `git add -A` 都会照常提交它。CRLF 警告列表是唯一暴露点，差点再次漏过。
+- **修复**：`git rm --cached` 三件（私钥/公钥/deploy/config）断开跟踪并推送；密钥轮换 v4（git 历史里的 v3 视为已泄露：用历史中的 v3 私钥做最后一次救援登录，把 v4 公钥写入服务器、摘除 v3、销毁救援文件）；pre-commit 新增敏感文件跟踪闸门（`git ls-files` 全量 + 暂存区双检查，命中即阻断）。
+- **教训**：①"移除敏感文件"提交后必须用 `git ls-files | grep <路径>` 验证为空才算完成——看 commit 消息/diff 摘要不可靠；② .gitignore 只防"未跟踪文件被加入"，已跟踪文件的排除要靠 `git rm --cached`，且要做进自动化检查而不是靠记忆；③ 已推送到公开仓库的私钥唯一正确的处置是**轮换**（服务端换锁），清史（filter-repo）只是锦上添花；④ 这类闸门该在第一次事故后就建——第二次事故的成本远高于闸门本身。

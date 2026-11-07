@@ -1,4 +1,24 @@
 #!/bin/sh
-# pre-commit：提交前强制跑单元测试，失败则阻断提交
+# pre-commit：①敏感文件跟踪闸门 ②提交前强制单测
+
+# —— 敏感文件不得进入 git 跟踪（.gitignore 对已跟踪文件无效，必须在这里拦）——
+LEAKS=$(git ls-files | grep -E '(^|/)(\.ssh-key/|deploy/config|server/\.env|\.env$|.*\.pem$|id_rsa|id_ed25519)' || true)
+if [ -n "$LEAKS" ]; then
+  echo ""
+  echo "[pre-commit] 阻断：以下敏感文件仍在 git 跟踪中（.gitignore 对已跟踪文件无效）："
+  echo "$LEAKS"
+  echo "处理：git rm --cached <文件> 后重试；已入库过的密钥必须轮换作废，不能只删文件。"
+  exit 1
+fi
+
+# 同样拦截本次新增的暂存文件
+STAGED=$(git diff --cached --name-only | grep -E '(^|/)(\.ssh-key/|deploy/config|server/\.env$|\.env$|.*\.pem$|id_rsa|id_ed25519)' || true)
+if [ -n "$STAGED" ]; then
+  echo ""
+  echo "[pre-commit] 阻断：本次暂存包含敏感文件："
+  echo "$STAGED"
+  exit 1
+fi
+
 echo "[pre-commit] 运行单元测试..."
 npm --prefix web test

@@ -15,7 +15,7 @@ source deploy/config
 echo "== 上传代码到 $SERVER_USER@$SERVER_HOST:/opt/mytime =="
 # SSH 解析：Git Bash(MSYS) 对 Windows 盘上的私钥收紧不了权限，OpenSSH 会拒载私钥
 # （表现为 Server accepts key 却签名失败）——优先用 Windows 自带 OpenSSH（按 ACL 校验）
-# 部署密钥：.ssh-key/id_ed25519（v3，无口令；服务器端在 root 的 authorized_keys）
+# 部署密钥：.ssh-key/id_ed25519（v4，无口令；服务器端在 root 的 authorized_keys）
 if [ -x "/c/Windows/System32/OpenSSH/ssh.exe" ]; then
   SSH_CMD="/c/Windows/System32/OpenSSH/ssh.exe"
   KEY_WIN=$(cygpath -m "$PWD/.ssh-key/id_ed25519")
