@@ -10,7 +10,7 @@ import os from 'node:os';
 import { execSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const MIGRATE_VERSION = '4';
+const MIGRATE_VERSION = '5';
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const toIdx = argv.indexOf('--to');
@@ -185,8 +185,24 @@ if (has(v2Src)) {
   } catch (e) { logErr('   ✗ 桌面端项目列表异常', e); fail('桌面端项目列表', String(e).split('\n')[0], '可手动把 zcode-cli/v2-setting.json 里的 recentProjects 抄进新机同名文件'); }
 }
 
+// 强制替换目标文件：改名优先（原子）；被占用（EPERM/EBUSY）时回退"直接覆盖拷贝+删临时"
+// （Windows 下目标以"可读写但不可删除"被占用时，覆盖拷贝往往仍可行），共 4 轮退避重试
+function forceReplace(tmp, final) {
+  let lastErr = null;
+  for (let i = 1; i <= 4; i++) {
+    try { fs.renameSync(tmp, final); return 'rename'; } catch (e) { lastErr = e; }
+    try { fs.copyFileSync(tmp, final); fs.unlinkSync(tmp); return 'copy'; } catch (e2) { lastErr = e2; }
+    if (i < 4) {
+      const wait = i * 1500;
+      log(`   目标被占用，${wait}ms 后重试（${i}/4）...`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait);
+    }
+  }
+  throw lastErr || new Error('替换失败');
+}
+
 // 6. 会话数据库（全部对话记录）：必须先关闭 ZCode；三件套原子替换——
-//    先拷成 *.importing 临时名，全部成功后统一改名生效；任何一步失败自动清理，
+//    先拷成 *.importing 临时名，全部成功后统一替换生效；任何一步失败自动清理，
 //    旧库原封不动（绝不允许"新主库+旧 WAL"的半套不一致状态）。
 log('\n6. ZCode 会话数据库（全部对话记录，三件套原子替换）');
 const srcDb = path.join(IN, 'zcode-cli', 'db');
@@ -195,9 +211,9 @@ const DB_FILES = ['db.sqlite', 'db.sqlite-shm', 'db.sqlite-wal'];
 if (has(path.join(srcDb, 'db.sqlite'))) {
   const existing = DB_FILES.filter((f) => has(path.join(dstDb, f)));
   const locked = existing.filter((f) => isLocked(path.join(dstDb, f)));
-  log(`   目标现有：${existing.join(', ') || '（无）'}；锁检测：${locked.length ? '被占用 → ' + locked.join(', ') : '全部空闲'}`);
-  if (locked.length) {
-    fail('会话数据库恢复', '目标文件被占用（ZCode 或其后台进程正在运行）→ ' + locked.join(', '),
+  log(`   目标现有：${existing.join(', ') || '（无）'}；锁检测：${locked.length ? '被占用 → ' + locked.join(', ') : '空闲（SQLite 型占用 r+ 探测可能漏报，替换时若被占用会自动重试）'}`);
+  if (locked.length === existing.length && existing.length) {
+    fail('会话数据库恢复', '全部目标文件被占用（ZCode 或其后台进程正在运行）→ ' + locked.join(', '),
       '请完全退出 ZCode（含托盘/后台进程，任务管理器确认无 zcode 进程）后重新双击「一键还原」');
   } else {
     const temps = [];
@@ -212,24 +228,25 @@ if (has(path.join(srcDb, 'db.sqlite'))) {
         log(`   - 已拷贝 ${f}（${(fs.statSync(tmp).size / 1024 / 1024).toFixed(1)} MB）→ 待生效`);
       }
       if (!temps.length) throw new Error('一个文件都没拷上');
-      // 全部拷贝成功 → 备份旧库 → 原子改名生效
+      // 全部拷贝成功 → 备份旧库 → 逐件强制替换生效（改名优先，被占用自动重试/回退覆盖拷贝）
       if (existing.length) {
         const bak = path.join(HOME, '.zcode', 'backup-migrate-' + Date.now());
         fs.mkdirSync(bak, { recursive: true });
         for (const f of existing) fs.copyFileSync(path.join(dstDb, f), path.join(bak, f));
         log('   旧库已备份 → ' + bak);
-        for (const f of existing) { try { fs.unlinkSync(path.join(dstDb, f)); } catch {} }
       }
-      for (const { f, tmp } of temps) fs.renameSync(tmp, path.join(dstDb, f));
-      ok(`会话数据库已恢复（${temps.length} 个文件原子生效，全部对话记录）`);
+      for (const { f, tmp } of temps) {
+        const how = forceReplace(tmp, path.join(dstDb, f));
+        log(`   - ${f} 已生效（方式：${how === 'rename' ? '改名' : '覆盖拷贝'}）`);
+      }
+      ok(`会话数据库已恢复（${temps.length} 个文件全部生效，全部对话记录）`);
     } catch (e) {
       for (const { tmp } of temps) { try { fs.unlinkSync(tmp); } catch {} } // 清理半成品，旧库保持原样
       const msg = String(e);
       logErr('   ✗ 会话数据库异常（已回滚，旧库未动）', e);
       fail('会话数据库恢复', msg.split('\n')[0],
-        ['EBUSY', 'EPERM', 'EACCES', 'UNKNOWN'].some((c) => msg.includes(c))
-          ? '常见原因：ZCode 后台进程或杀毒软件瞬时占用。等 10 秒重试一次；仍失败请完全退出 ZCode 后重跑'
-          : '检查 ~/.zcode/cli/db 目录权限');
+        '反复 EPERM 时：任务管理器 → 详细信息 → 结束所有 zcode 相关进程（或重启电脑后立刻运行还原）；'
+        + '也可能是杀毒软件在扫描刚写入的库文件——等 30 秒重试');
     }
   }
 } else log('   （导出包里没有会话数据库，跳过）');

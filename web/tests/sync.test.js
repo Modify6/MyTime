@@ -160,11 +160,11 @@ describe('写后防抖上推（v0.10.0 全自动同步）', () => {
 
   it('连续多次写入合并：防抖窗口内只推一次，且推的是最终状态', async () => {
     mockSyncApi = vi.fn(async (p) => ({ serverTime: 5000, applied: p.changes.length, changes: [] }));
-    repo.setWriteHook(() => sync.schedulePush(15));
+    repo.setWriteHook(() => sync.schedulePush(60)); // 防抖窗口 60ms，写入间隔 5ms——10 倍裕量防定时器抢先
     await repo.putRow('events', evRow('merge-ev', '第一版', 1));
     await new Promise((r) => setTimeout(r, 5));
     await repo.putRow('events', evRow('merge-ev', '第二版', 2));
-    await new Promise((r) => setTimeout(r, 60)); // 越过整个防抖窗口
+    await new Promise((r) => setTimeout(r, 150)); // 越过整个防抖窗口
 
     expect(mockSyncApi).toHaveBeenCalledTimes(1); // 两次写入只推一次
     const sent = mockSyncApi.mock.calls[0][0];
