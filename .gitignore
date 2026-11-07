@@ -31,3 +31,11 @@ test-results/
 .ci-log.txt
 .jobs.json
 .lastrun.json
+
+# SSH 部署密钥（私钥绝不入库）
+.ssh-key/
+deploy/config
+.ann.json
+.jobs.json
+.lastrun.json
+.debug-state.json
