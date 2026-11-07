@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // 迁移导入：在新电脑上恢复 migrate-export.mjs 导出的内容
-// 用法：node scripts/migrate-import.mjs <导出目录>
+// 用法：node migrate-import.mjs <导出目录> [--to <项目根目录>]
+//   --to：目标项目路径（U 盘上的 migrate-run.mjs 会传入）；缺省=本脚本所在仓库的上级推断
 // 前置：新机已装 Node 22+ 与 Git；恢复会话数据库前先关闭 ZCode。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,12 +9,19 @@ import os from 'node:os';
 import { execSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HOME = os.homedir();
-const IN = path.resolve(process.argv[2] || '');
+const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
+const argv = process.argv.slice(2);
+const toIdx = argv.indexOf('--to');
+const TO = toIdx >= 0 ? path.resolve(argv[toIdx + 1] || '') : null;
+const rest = argv.filter((a, i) => a !== '--to' && i !== toIdx + 1);
+const IN = path.resolve(rest[0] || '');
 const die = (m) => { console.error('[错误] ' + m); process.exit(1); };
 
-if (!IN || !fs.existsSync(IN)) die(`导出目录不存在：${IN}（用法：node scripts/migrate-import.mjs <导出目录>）`);
+if (!IN || !fs.existsSync(IN)) die(`导出目录不存在：${IN}（用法：node migrate-import.mjs <导出目录> [--to <项目根目录>]）`);
+// 目标项目根：优先 --to；否则按脚本位置推断（仓库内运行时 = scripts 的上级；U 盘副本场景必须传 --to）
+const ROOT = TO || path.resolve(SELF_DIR, '..');
+const HOME = os.homedir();
+
 const has = (p) => fs.existsSync(p);
 const cp = (src, dest) => {
   if (!has(src)) return false;

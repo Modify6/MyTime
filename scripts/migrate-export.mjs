@@ -35,7 +35,9 @@ const cpDir = (src, destDir) => {
 
 if (OUT.startsWith(ROOT)) die('输出目录不能在仓库内（会混入 git / 下次 add -A 泄露私钥）');
 
-fs.rmSync(OUT, { recursive: true, force: true });
+// 只清空"导出产物"，保留目录里的工具件（一键 bat / migrate-run.mjs / migrate-import.mjs / 上次迁移源.txt）
+for (const item of ['mytime.bundle', 'MANIFEST.txt', 'secrets', 'server-data', 'project-zcode', 'zcode-cli'])
+  fs.rmSync(path.join(OUT, item), { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const manifest = [];
 
@@ -78,6 +80,13 @@ for (const f of ['db.sqlite', 'db.sqlite-shm', 'db.sqlite-wal'])
 if (dbCopied) manifest.push(`zcode-cli/db/ —— 会话/对话记录数据库（${dbCopied} 个文件）`);
 
 fs.writeFileSync(path.join(OUT, 'MANIFEST.txt'), manifest.join('\n') + '\n', 'utf8');
+
+// 迁移中枢自维护：刷新还原脚本副本 + 记录本次源项目路径（供下次一键迁移自动定位）
+cp(path.join(ROOT, 'scripts', 'migrate-import.mjs'), OUT);
+fs.writeFileSync(path.join(OUT, '上次迁移源.txt'), ROOT + '\n', 'utf8');
+manifest.push('migrate-import.mjs —— 还原脚本副本（一键还原使用）');
+manifest.push('上次迁移源.txt —— 本次导出的项目路径');
+
 console.log('导出完成 → ' + OUT + '\n');
 for (const line of manifest) console.log('  ✓ ' + line);
 if (fs.existsSync(path.join(OUT, 'zcode-cli', 'db', 'db.sqlite-wal')))
