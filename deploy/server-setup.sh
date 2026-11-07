@@ -40,6 +40,8 @@ npm ci --prefix server
 npm ci --prefix web
 npm --prefix web run build
 
+mkdir -p "$APP_DIR/server/data"  # ReadWritePaths 需要目录先存在（systemd 226/NAMESPACE 坑）
+
 echo "== [4/6] systemd service =="
 # Auto-generate a strong password ONCE; keep it in a root-only env file.
 if [ ! -f "$ENV_FILE" ]; then
