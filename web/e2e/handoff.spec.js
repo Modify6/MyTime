@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
+import { saveJson, shotPath } from './helpers/debug.mjs';
 
 // v0.8.1 调度统一 E2E：手动打卡被计划抢占 / 跨设备并行清理（调试模式：步骤记录 + 最终 dump + 硬断言）
 // 选择器约定：弹窗断言一律用 .van-popup:visible .handoff 作用域（避免多弹层严格模式冲突）
@@ -14,7 +14,7 @@ async function dumpDb(page) {
 }
 
 function mkSteps(page, state, file) {
-  const save = () => fs.writeFileSync(`E:/study/zi/MyTime/.debug-${file}.json`, JSON.stringify(state, null, 1));
+  const save = () => saveJson(`.debug-${file}.json`, state);
   const step = async (name, fn) => {
     try {
       await fn();
@@ -22,7 +22,7 @@ function mkSteps(page, state, file) {
     } catch (e) {
       state.steps.push(name + ': FAIL(' + String(e).split('\n')[0].slice(0, 120) + ')');
       save();
-      await page.screenshot({ path: 'E:/study/zi/MyTime/.fail-' + file + '-' + name.replace(/\//g, '_') + '.png' });
+      await page.screenshot({ path: shotPath(`.fail-${file}-${name.replace(/\//g, '_')}.png`) });
     }
   };
   return { step, save };

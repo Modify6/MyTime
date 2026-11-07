@@ -8,8 +8,7 @@ const walk = (s) => {
     (sp.tests || []).forEach((t) => {
       if (t.ok === false || t.expectedStatus !== t.status) {
         const msg = String(t.results?.[0]?.error?.message || t.results?.[0]?.failure?.message || '').slice(0, 300);
-        console.log('::error::E2E_FAIL ' + sp.title + ' :: ' + msg.replace(/
-/g, ' '));
+        console.log('::error::E2E_FAIL ' + sp.title + ' :: ' + msg.replace(/\n/g, ' '));
       }
     });
   });

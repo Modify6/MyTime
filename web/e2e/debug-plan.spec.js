@@ -1,11 +1,11 @@
 import { test } from '@playwright/test';
-import fs from 'node:fs';
+import { saveJson, shotPath } from './helpers/debug.mjs';
 
 // 调试：全流程尽力执行，每步状态写文件（绕过 reporter 吞输出）
 test('调试：计划调度状态收集', async ({ page }) => {
   test.setTimeout(90_000);
   const state = { steps: [], dump: null };
-  const save = () => fs.writeFileSync('E:/study/zi/MyTime/.debug-state.json', JSON.stringify(state, null, 1));
+  const save = () => saveJson('.debug-state.json', state);
   const step = async (name, fn) => {
     try {
       await fn();
@@ -99,5 +99,5 @@ test('调试：计划调度状态收集', async ({ page }) => {
     };
   });
   save();
-  await page.screenshot({ path: 'E:/study/zi/MyTime/.debug-handoff.png' });
+  await page.screenshot({ path: shotPath('.debug-handoff.png') });
 });

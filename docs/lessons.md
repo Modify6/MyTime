@@ -79,3 +79,10 @@
 - **根因**：两层。① `_settleAllRunning` 循环里调 `timer.stopCurrent()`，而它永远停 `running[0]`——当被排除的计时恰好排在首位时，后续迭代会误停别的事件（"循环变量"与"实际作用对象"不是同一个）。② 计划 store 的内存数组靠 onChange 延迟 ~30ms 刷新，调度动作紧跟写入发生时 `activePlan` 取到旧状态，空转返回。
 - **修复**：`stopCurrent` 增加 `eventId` 参数按 id 精确结束；所有调度动作（start/_stopActive）入口先 `await this.load()` 回读库再决策，不再依赖订阅时序。
 - **教训**：批量处置循环里不要依赖"默认对象"语义——每个动作必须显式指定目标；依赖事件订阅刷新的状态，在"写后立刻读"的调度链路里一律视为过期，先回读。
+
+## 12. "CI E2E 偶发失败"的真凶：调试辅助硬编码 Windows 盘符路径（v0.9.0 后修正）
+
+- **现象**：多轮发版 CI 的 E2E 时好时坏，本地 Windows 始终全过，一直按"Linux chromium 偶发"归档。
+- **根因**：三个叠加。① 多个 spec 的调试辅助把产物写到硬编码 `E:/study/zi/MyTime/...`，Linux runner 上 `fs.writeFileSync` 直接 ENOENT，且这些写入在 step 的 catch/收尾里执行，一炸就把整条测试判死；② `e2e-summary.mjs` 的正则字面量里混进了真实换行（`replace(/↵/g)`），失败摘要脚本从未成功运行过——掩盖了 ① 的真实报错，逼出用浏览器爬 CI 日志的一次性 spec；③ 那个一次性 spec（read-ci-log）硬编码旧 run URL，本身又成了 CI 失败项。
+- **修复**：新增 `web/e2e/helpers/debug.mjs` 统一产物路径（`path.resolve(process.cwd(),'..')` 跨平台）且所有调试写入吞错告警；删除一次性 spec；修正摘要脚本正则。
+- **教训**：测试辅助代码也是被测代码的一部分，任何平台假设（盘符、绝对路径）都会在 CI 上兑现为失败；"调试逻辑的失败不应影响测试结果"要用 try/catch 明确保证，而不是默认它不会坏；把失败归因为"偶发"之前，先确保诊断管道本身（摘要脚本）是能跑通的。

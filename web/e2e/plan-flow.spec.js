@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
+import { saveJson, shotPath } from './helpers/debug.mjs';
 
 // 计划调度全流程（调试模式：失败不断链，最终 dump 数据库与页面状态）
 test('计划调度全流程：预排/挂起/抢占/恢复/完成', async ({ page }) => {
   test.setTimeout(150_000);
   const state = { steps: [], dump: null, errors: [] };
-  const save = () => fs.writeFileSync('E:/study/zi/MyTime/.debug-state.json', JSON.stringify(state, null, 1));
+  const save = () => saveJson('.debug-state.json', state);
   const step = async (name, fn) => {
     try {
       await fn();
@@ -13,7 +13,7 @@ test('计划调度全流程：预排/挂起/抢占/恢复/完成', async ({ page
     } catch (e) {
       state.steps.push(name + ': FAIL(' + String(e).split('\n')[0].slice(0, 90) + ')');
       save();
-      await page.screenshot({ path: 'E:/study/zi/MyTime/.fail-' + name.replace(/\//g, '_') + '.png' });
+      await page.screenshot({ path: shotPath('.fail-' + name.replace(/\//g, '_') + '.png') });
     }
   };
   page.on('pageerror', (err) => { state.errors.push('PAGE_ERR: ' + String(err).slice(0, 120)); save(); });
@@ -94,5 +94,5 @@ test('计划调度全流程：预排/挂起/抢占/恢复/完成', async ({ page
     };
   });
   save();
-  await page.screenshot({ path: 'E:/study/zi/MyTime/.debug-final.png' });
+  await page.screenshot({ path: shotPath('.debug-final.png') });
 });
