@@ -24,3 +24,10 @@ MyTime.apk
 
 # Playwright 产物
 test-results/
+
+# 诊断临时文件
+.debug-state.json
+.ann.json
+.ci-log.txt
+.jobs.json
+.lastrun.json
