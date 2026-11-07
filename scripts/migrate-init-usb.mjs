@@ -36,6 +36,7 @@ const files = {
   '一键迁移整个zi.bat': bat('One-click migration: MyTime + ZCode data + the WHOLE zi folder (all projects)').replace('MODE', 'export-zi'),
   '一键还原.bat': bat('One-click migration RESTORE (run on the TARGET machine; close ZCode first)').replace('MODE', 'import'),
   '一键还原整个zi.bat': bat('One-click restore: the WHOLE zi folder + MyTime + ZCode data (close ZCode first)').replace('MODE', 'import-zi'),
+  '自检.bat': bat('Verify: show sessions/projects actually present in the local ZCode database').replace('MODE', 'verify'),
 };
 fs.copyFileSync(path.join(ROOT, 'scripts', 'migrate-run.mjs'), path.join(OUT, 'migrate-run.mjs'));
 

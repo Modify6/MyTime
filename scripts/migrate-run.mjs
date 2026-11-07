@@ -7,6 +7,7 @@
 // 项目定位策略：上次迁移源.txt → 常见路径探测 → 交互输入（输入后记住）
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -153,7 +154,29 @@ if (mode === 'export') {
     runProjectImport(project);   // 再还原 MyTime + ZCode 记忆/对话（会话库自动备份）
     console.log('\n[完成] 全部项目 + ZCode 会话已还原。按收尾清单 npm install 后即可使用。');
   })();
+} else if (mode === 'verify') {
+  // 自检：只读统计本机 ZCode 会话库——还原后跑一次，立即可见会话/项目是否真的进来了
+  (async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const dbPath = path.join(os.homedir(), '.zcode', 'cli', 'db', 'db.sqlite');
+    if (!fs.existsSync(dbPath)) die('未找到会话库 ' + dbPath);
+    try {
+      const db = new DatabaseSync(dbPath, { readOnly: true });
+      const n = db.prepare('SELECT COUNT(*) n FROM session').get().n;
+      console.log(`会话总数：${n}`);
+      const rows = db
+        .prepare('SELECT directory, COUNT(*) n, MAX(time_updated) t FROM session GROUP BY directory ORDER BY t DESC')
+        .all();
+      for (const r of rows)
+        console.log(`  ${String(r.n).padStart(2)} 场  ${r.directory}  （最近 ${new Date(r.t).toLocaleString('zh-CN')}）`);
+      db.close();
+      console.log('\n[说明] ZCode 侧栏「项目」按会话归属推导——上表有的目录，打开对应文件夹即可看到其任务列表。');
+      console.log('[说明] 若数字远小于预期：还原时会话库没恢复成功（多半是 ZCode 未退出）——重跑「一键还原」。');
+    } catch (e) {
+      die('读取会话库失败（ZCode 正在运行会锁库）: ' + String(e).split('\n')[0]);
+    }
+  })();
 } else {
-  console.log('用法：node migrate-run.mjs export|export-zi|import|import-zi（由 一键*.bat 调用）');
+  console.log('用法：node migrate-run.mjs export|export-zi|import|import-zi|verify（由 一键*.bat 调用）');
   process.exit(1);
 }
