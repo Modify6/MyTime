@@ -12,14 +12,9 @@ import { bindBackClose } from '../lib/native.js';
 
 const catalog = useCatalogStore();
 
-// —— 单日 24 小时时间轴弹层 ——
-// 手机竖屏放不下 24h，改为横向滚动（每小时 32px）；跨天事件截断到当日；点色块直接编辑
-const AXIS_HOUR_PX = 32;
-const AXIS_WIDTH = 24 * AXIS_HOUR_PX; // 768px
-const hourTicks = Array.from({ length: 13 }, (_, i) => i * 2); // 0,2,4...24
-
+// —— 单日时间轴弹层：竖向时间标尺（参照 Atimelogger / 日历类 App）——
+// 自适应时间范围与行高，事件条带全宽显示"标题 · 时长"，空白时段在标尺上一目了然
 const axisDay = ref(null);
-const axisNowPct = ref(null); // 今天时"现在"指示线位置（打开弹层那一刻快照）
 
 function dayBounds(key) {
   const dayStart = dayjs(key).startOf('day').valueOf();
@@ -31,21 +26,59 @@ function dayEvents(key) {
   return events.value.filter((e) => e.startAt < dayEnd && (e.endAt ?? Date.now()) > dayStart);
 }
 
+// 自适应时间范围：事件最早/最晚时刻取整到整小时再各外扩 1 小时；无事件回落 00-24
+const axisRange = computed(() => {
+  if (!axisDay.value) return { start: 0, end: 24 };
+  const { dayStart, dayEnd } = dayBounds(axisDay.value);
+  const evs = dayEvents(axisDay.value);
+  if (!evs.length) return { start: 0, end: 24 };
+  let min = 24, max = 0;
+  for (const e of evs) {
+    min = Math.min(min, Math.max(0, (e.startAt - dayStart) / 3_600_000));
+    max = Math.max(max, Math.min(24, ((e.endAt ?? Date.now()) - dayStart) / 3_600_000));
+  }
+  const start = Math.max(0, Math.floor(min) - 1);
+  const end = Math.min(24, Math.max(Math.ceil(max) + 1, start + 1));
+  return { start, end };
+});
+const axisHours = computed(() => {
+  const { start, end } = axisRange.value;
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+});
+const pxPerHour = computed(() => {
+  const { start, end } = axisRange.value;
+  return Math.min(72, Math.max(28, 560 / (end - start)));
+});
+const trackHeight = computed(() => (axisRange.value.end - axisRange.value.start) * pxPerHour.value);
+
+const axisIsToday = computed(() => axisDay.value && dayjs(axisDay.value).isSame(dayjs(), 'day'));
+const axisNowTop = computed(() => {
+  if (!axisIsToday.value || !axisDay.value) return null;
+  const { dayStart } = dayBounds(axisDay.value);
+  const top = ((Date.now() - dayStart) / 3_600_000 - axisRange.value.start) * pxPerHour.value;
+  return Math.max(0, Math.min(trackHeight.value, top));
+});
+
+// 事件条带：泳道重叠时按 lane 序号等分宽度并排
 const axisLanes = computed(() => {
   if (!axisDay.value) return [];
   const { dayStart, dayEnd } = dayBounds(axisDay.value);
-  const evs = dayEvents(axisDay.value);
-  return layoutDayLanes(evs).map((lane) =>
+  const { start: rStart } = axisRange.value;
+  const pph = pxPerHour.value;
+  const lanes = layoutDayLanes(dayEvents(axisDay.value));
+  const n = Math.max(1, lanes.length);
+  return lanes.map((lane, li) =>
     lane.map((s) => {
       const st = Math.max(s.start, dayStart);
       const en = Math.min(s.end ?? Date.now(), dayEnd);
-      const widthPct = ((en - st) / 86_400_000) * 100;
       return {
         event: s.event,
-        left: ((st - dayStart) / 86_400_000) * 100,
-        width: Math.max(widthPct, 0.4),
-        widthPx: (widthPct / 100) * AXIS_WIDTH,
+        top: ((st - dayStart) / 3_600_000 - rStart) * pph,
+        height: Math.max(((en - st) / 3_600_000) * pph, 20),
+        left: li * (100 / n),
+        width: 100 / n,
         color: catalog.catColor(s.event.categoryId),
+        label: `${s.event.title} · ${fmtDur(en - st)}`,
       };
     })
   );
@@ -58,7 +91,7 @@ const axisStats = computed(() => {
     recorded += Math.min(e.endAt ?? Date.now(), dayEnd) - Math.max(e.startAt, dayStart);
   return { recorded: Math.max(0, recorded), idle: Math.max(0, 86_400_000 - Math.max(0, recorded)) };
 });
-const axisIsToday = computed(() => axisDay.value && dayjs(axisDay.value).isSame(dayjs(), 'day'));
+
 const axisDayShow = computed({
   get: () => axisDay.value != null,
   set: (v) => {
@@ -68,9 +101,9 @@ const axisDayShow = computed({
 bindBackClose(axisDayShow, () => (axisDay.value = null));
 function openAxis(key) {
   axisDay.value = key;
-  axisNowPct.value = axisIsToday.value
-    ? ((Date.now() - dayBounds(key).dayStart) / 86_400_000) * 100
-    : null;
+}
+function shiftDay(d) {
+  axisDay.value = dayjs(axisDay.value).add(d, 'day').format('YYYY-MM-DD');
 }
 
 const cursor = ref(Date.now());
@@ -152,41 +185,47 @@ function addRecord() {
 
     <van-popup v-model:show="axisDayShow" position="bottom" round class="popup-safe">
       <div class="axis-sheet" v-if="axisDay">
-        <div class="axis-title">
-          <span>{{ fmtDayLabel(axisDay) }} · 24 小时时间轴</span>
-          <span class="axis-sum" v-if="axisStats">
-            记录 {{ fmtDur(axisStats.recorded) }} · 空白 {{ fmtDur(axisStats.idle) }}
-          </span>
+        <div class="axis-head">
+          <van-button size="small" round plain icon="arrow-left" @click="shiftDay(-1)" />
+          <span class="axis-title">{{ fmtDayLabel(axisDay) }}</span>
+          <van-button size="small" round plain icon="arrow" @click="shiftDay(1)" />
+        </div>
+        <div class="axis-sub" v-if="axisStats">
+          记录 {{ fmtDur(axisStats.recorded) }} · 空白 {{ fmtDur(axisStats.idle) }}
         </div>
 
-        <div class="axis-scroll">
-          <div class="axis-inner" :style="{ width: AXIS_WIDTH + 'px' }">
-            <div class="axis-hours">
-              <span
-                v-for="h in hourTicks"
-                :key="h"
-                :style="{ left: (h / 24) * 100 + '%', transform: h === 0 ? 'none' : h === 24 ? 'translateX(-100%)' : 'translateX(-50%)' }"
-              >{{ h }}</span>
-            </div>
-            <div class="axis-track">
-              <div class="axis-gridline" v-for="h in hourTicks" :key="'g' + h" :style="{ left: (h / 24) * 100 + '%' }" />
-              <div v-if="axisIsToday && axisNowPct != null" class="axis-now" :style="{ left: axisNowPct + '%' }" />
-              <div class="axis-lane" v-for="(lane, li) in axisLanes" :key="li">
-                <div
-                  v-for="(b, bi) in lane"
-                  :key="bi"
-                  class="axis-block"
-                  :style="{ left: b.left + '%', width: b.width + '%', background: b.color }"
-                  @click="openEdit(b.event)"
-                >
-                  <span v-if="b.widthPx >= 30" class="axis-block-text">{{ b.event.title }}</span>
-                </div>
+        <div class="axis-body">
+          <div class="axis-gutter">
+            <span
+              v-for="h in axisHours"
+              :key="h"
+              class="axis-hour"
+              :style="{ top: (h - axisRange.start) * pxPerHour - 6 + 'px' }"
+            >{{ String(h).padStart(2, '0') }}:00</span>
+          </div>
+          <div class="axis-track" :style="{ height: trackHeight + 'px' }">
+            <div
+              v-for="h in axisHours"
+              :key="'l' + h"
+              class="axis-hourline"
+              :style="{ top: (h - axisRange.start) * pxPerHour + 'px' }"
+            />
+            <div v-if="axisIsToday && axisNowTop != null" class="axis-now" :style="{ top: axisNowTop + 'px' }" />
+            <div v-for="(lane, li) in axisLanes" :key="li">
+              <div
+                v-for="(b, bi) in lane"
+                :key="bi"
+                class="axis-block"
+                :style="{ top: b.top + 'px', left: b.left + '%', width: b.width + '%', height: b.height + 'px', background: b.color }"
+                @click="openEdit(b.event)"
+              >
+                <span class="axis-block-text">{{ b.label }}</span>
               </div>
-              <div v-if="!axisLanes.length" class="axis-empty">该日暂无记录块</div>
             </div>
+            <div v-if="!axisLanes.length" class="axis-empty">该日暂无记录</div>
           </div>
         </div>
-        <div class="axis-hint">← 横向滑动查看全天 · 点色块可编辑该条记录 →</div>
+        <div class="axis-hint">‹ › 切换日期 · 点色块可编辑该条记录</div>
       </div>
     </van-popup>
 
@@ -202,96 +241,95 @@ function addRecord() {
   padding: 8px 12px;
 }
 .axis-sheet {
-  padding: 18px 16px 10px;
+  padding: 16px 14px 10px;
+}
+.axis-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 .axis-title {
   font-size: 15px;
   font-weight: 700;
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
+  min-width: 130px;
+  text-align: center;
 }
-.axis-title > span:first-child {
-  white-space: nowrap;
-}
-.axis-sum {
+.axis-sub {
+  text-align: center;
   font-size: 11px;
-  font-weight: 400;
   color: var(--text-3);
+  margin: 6px 0 10px;
 }
-.axis-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+.axis-body {
+  display: flex;
+  gap: 6px;
 }
-.axis-inner {
+.axis-gutter {
   position: relative;
+  width: 40px;
+  flex: none;
 }
-.axis-hours {
-  position: relative;
-  height: 16px;
-}
-.axis-hours span {
+.axis-hour {
   position: absolute;
+  right: 0;
   font-size: 10px;
   color: var(--text-3);
-  line-height: 16px;
+  line-height: 12px;
+  transform: translateY(-50%);
 }
 .axis-track {
   position: relative;
+  flex: 1;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 4px 0;
   background: var(--card-2);
   overflow: hidden;
 }
-.axis-gridline {
+.axis-hourline {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
+  left: 0;
+  right: 0;
+  height: 1px;
   background: var(--line);
   opacity: 0.45;
 }
 .axis-now {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
+  left: 0;
+  right: 0;
+  height: 2px;
   background: var(--danger);
   z-index: 2;
 }
-.axis-lane {
-  position: relative;
-  height: 24px;
-  margin: 2px 0;
-}
 .axis-block {
   position: absolute;
-  top: 1px;
-  height: 22px;
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
   cursor: pointer;
+  z-index: 1;
 }
 .axis-block:active {
   filter: brightness(1.15);
 }
 .axis-block-text {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   color: #fff;
-  padding-left: 4px;
-  line-height: 22px;
+  padding: 0 5px;
+  line-height: 20px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .axis-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   color: var(--text-3);
-  text-align: center;
-  padding: 8px 0;
 }
 .axis-hint {
   font-size: 11px;
