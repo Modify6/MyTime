@@ -55,6 +55,38 @@ console.log(`[工具链] JDK=${TC_JDK}`);
 console.log(`[工具链] SDK=${TC_SDK}`);
 console.log(`[工具链] Gradle缓存=${env.GRADLE_USER_HOME}`);
 
+// —— 版本策略：相对上次打包，代码有变化时自动递增小版本号（patch），无变化沿用 ——
+// 版本唯一源仍是 web/package.json；release.mjs 的 minor/major 从当前值继续向上
+import { execSync as _execSync } from 'node:child_process';
+const pkgPath = path.join(ROOT, 'web', 'package.json');
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+let ver = pkg.version;
+let head = 'nogit';
+let dirtyOthers = false;
+try {
+  head = _execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
+  // -uno：忽略未跟踪文件（打包产物/截图不应触发递增）
+  // web/package.json 与 app/android/app/build.gradle 由本脚本/sync-version 自动管理，
+  // 它们的未提交改动不视为"代码变化"（防无限递增）
+  const AUTO_MANAGED = ['web/package.json', 'app/android/app/build.gradle'];
+  const st = spawnSync('git', ['status', '--porcelain', '-uno'], { cwd: ROOT, encoding: 'utf8' });
+  dirtyOthers = st.stdout
+    .split('\n')
+    .filter((l) => l.trim() && !AUTO_MANAGED.some((f) => l.includes(f))).length > 0;
+} catch {}
+const stateFile = path.join(ROOT, '.apk-build-state.json');
+const last = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : null;
+if (!last || last.head !== head || last.dirty !== dirtyOthers || last.base !== ver) {
+  const [maj, min, pat] = ver.split('.').map(Number);
+  ver = `${maj}.${min}.${pat + 1}`;
+  pkg.version = ver;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  console.log(`[版本] 检测到代码变化，小版本号自动递增 → v${ver}`);
+} else {
+  console.log(`[版本] 代码无变化，沿用 v${ver}（重复打包覆盖同名文件）`);
+}
+fs.writeFileSync(stateFile, JSON.stringify({ ver, head, dirty: dirtyOthers }, null, 2));
+
 // —— 首次运行安装壳工程依赖 ——
 if (!fs.existsSync(path.join(ROOT, 'app', 'node_modules'))) {
   console.log('\n首次运行：安装 Capacitor 依赖...');
@@ -72,11 +104,11 @@ run(process.execPath, [path.join(ROOT, 'scripts', 'sync-version.mjs')], { label:
 const androidDir = path.join(ROOT, 'app', 'android');
 run('cmd.exe', ['/c', 'gradlew.bat', 'assembleDebug'], { cwd: androidDir, env, label: 'gradlew assembleDebug' });
 
-// —— 4. 出包到项目根目录 ——
-const ver = JSON.parse(fs.readFileSync(path.join(ROOT, 'web', 'package.json'), 'utf8')).version;
+// —— 4. 出包到项目根目录（版本取自自动递增后的 web/package.json） ——
+const apkVer = JSON.parse(fs.readFileSync(path.join(ROOT, 'web', 'package.json'), 'utf8')).version;
 const apkSrc = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 if (!fs.existsSync(apkSrc)) die(`打包完成但未找到产物：${apkSrc}`);
-fs.copyFileSync(apkSrc, path.join(ROOT, `MyTime-v${ver}.apk`));
+fs.copyFileSync(apkSrc, path.join(ROOT, `MyTime-v${apkVer}.apk`));
 fs.copyFileSync(apkSrc, path.join(ROOT, 'MyTime.apk'));
-console.log(`\n== 完成！== MyTime-v${ver}.apk 已输出到项目根目录（${(fs.statSync(apkSrc).size / 1024 / 1024).toFixed(1)} MB）`);
+console.log(`\n== 完成！== MyTime-v${apkVer}.apk 已输出到项目根目录（${(fs.statSync(apkSrc).size / 1024 / 1024).toFixed(1)} MB）`);
 console.log('传到安卓手机直接安装（需允许"安装未知应用"），打开后在设置里填电脑地址与密码即可同步。');
