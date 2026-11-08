@@ -85,7 +85,7 @@ if (!last || last.head !== head || last.dirty !== dirtyOthers || last.base !== v
 } else {
   console.log(`[版本] 代码无变化，沿用 v${ver}（重复打包覆盖同名文件）`);
 }
-fs.writeFileSync(stateFile, JSON.stringify({ ver, head, dirty: dirtyOthers }, null, 2));
+fs.writeFileSync(stateFile, JSON.stringify({ base: ver, head, dirty: dirtyOthers }, null, 2));
 
 // —— 首次运行安装壳工程依赖 ——
 if (!fs.existsSync(path.join(ROOT, 'app', 'node_modules'))) {
