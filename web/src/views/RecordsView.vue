@@ -157,6 +157,52 @@ const monthLabel = computed(() => dayjs(cursor.value).format('YYYY年M月'));
 const prev = () => (cursor.value = shiftCursor('month', cursor.value, -1));
 const next = () => (cursor.value = shiftCursor('month', cursor.value, 1));
 
+// —— 月历视图（列表 ⇄ 月历切换）——
+const viewMode = ref('list'); // list | calendar
+const selectedDay = ref(null);
+
+// 当月日历格子：周一起始的前导空位 + 每天聚合（合计时长 + 分类色 + 热力等级）
+const calCells = computed(() => {
+  const first = dayjs(cursor.value).startOf('month');
+  const daysInMonth = first.daysInMonth();
+  const lead = (first.day() + 6) % 7; // 周一为一周之首
+  const byDay = new Map(
+    groups.value.map((g) => [
+      g.key,
+      {
+        total: g.total,
+        colors: [...new Set(g.list.map((e) => catalog.catColor(e.categoryId)))].slice(0, 3),
+      },
+    ])
+  );
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = first.date(d).format('YYYY-MM-DD');
+    const info = byDay.get(key);
+    const ms = info?.total || 0;
+    cells.push({
+      key,
+      day: d,
+      total: ms,
+      colors: info?.colors || [],
+      level:
+        ms >= 3 * 3_600_000 ? 4 : ms >= 1.5 * 3_600_000 ? 3 : ms >= 45 * 60_000 ? 2 : ms > 0 ? 1 : 0,
+      isToday: dayjs().format('YYYY-MM-DD') === key,
+    });
+  }
+  return cells;
+});
+const calSelected = computed(() => {
+  const key = selectedDay.value;
+  if (!key) return null;
+  const g = groups.value.find((x) => x.key === key);
+  return g ? { key, label: fmtDayLabel(dayjs(key).valueOf()), total: g.total, list: g.list } : null;
+});
+function selectDay(key) {
+  selectedDay.value = selectedDay.value === key ? null : key;
+}
+
 function openEdit(ev) {
   editing.value = ev;
   showEditor.value = true;
@@ -180,7 +226,47 @@ function addRecord() {
       <van-button size="small" round plain :disabled="dayjs(cursor).isAfter(dayjs(), 'month')" icon="arrow" @click="next" />
     </div>
 
-    <template v-if="groups.length">
+    <div class="view-toggle">
+      <button :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">列表</button>
+      <button :class="{ active: viewMode === 'calendar' }" @click="viewMode = 'calendar'">月历</button>
+    </div>
+
+    <!-- 月历视图：每天合计 + 分类色条 + 热力底色，点日期展开当日明细 -->
+    <template v-if="viewMode === 'calendar'">
+      <div class="card cal-card">
+        <div class="cal-week">
+          <span v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w">{{ w }}</span>
+        </div>
+        <div class="cal-grid">
+          <template v-for="(c, i) in calCells" :key="c ? c.key : 'b' + i">
+            <div v-if="!c" class="cal-blank"></div>
+            <button
+              v-else
+              class="cal-day"
+              :class="['lv' + c.level, { today: c.isToday, sel: selectedDay === c.key }]"
+              @click="selectDay(c.key)"
+            >
+              <span class="cal-num">{{ c.day }}</span>
+              <span class="cal-total" v-if="c.total">{{ fmtDur(c.total) }}</span>
+              <span class="cal-bars" v-if="c.colors.length">
+                <i v-for="(col, i2) in c.colors" :key="i2" :style="{ background: col }"></i>
+              </span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="card" v-if="calSelected">
+        <div class="section-title" style="margin-top: 0">
+          <span>{{ calSelected.label }} · {{ fmtDur(calSelected.total) }}</span>
+        </div>
+        <EventItem v-for="ev in calSelected.list" :key="ev.id" :event="ev" @edit="openEdit" />
+      </div>
+      <div class="card" v-else>
+        <div class="empty-tip">点日期查看当天明细</div>
+      </div>
+    </template>
+
+    <template v-if="viewMode === 'list'">
       <div v-for="g in groups" :key="g.key">
         <div class="section-title">
           <span>{{ g.label }}</span>
@@ -193,10 +279,10 @@ function addRecord() {
           <EventItem v-for="ev in g.list" :key="ev.id" :event="ev" @edit="openEdit" />
         </div>
       </div>
+      <div v-if="!groups.length" class="card">
+        <div class="empty-tip">{{ monthLabel }} 暂无记录</div>
+      </div>
     </template>
-    <div v-else class="card">
-      <div class="empty-tip">{{ monthLabel }} 暂无记录</div>
-    </div>
 
     <van-popup v-model:show="axisDayShow" position="bottom" round class="popup-safe">
       <div class="axis-sheet" v-if="axisDay">
@@ -356,5 +442,100 @@ function addRecord() {
 .month-label {
   font-weight: 700;
   font-size: 15px;
+}
+.view-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.view-toggle button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 4px 16px;
+  font-size: 12px;
+}
+.view-toggle button.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 600;
+}
+.cal-card {
+  padding-bottom: 10px;
+}
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.cal-week span {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-3);
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-blank {
+  min-height: 56px;
+}
+.cal-day {
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-2);
+  padding: 4px 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  text-align: center;
+}
+.cal-day.lv1 {
+  background: color-mix(in srgb, #4f6ef7 8%, var(--card-2));
+}
+.cal-day.lv2 {
+  background: color-mix(in srgb, #4f6ef7 16%, var(--card-2));
+}
+.cal-day.lv3 {
+  background: color-mix(in srgb, #4f6ef7 28%, var(--card-2));
+}
+.cal-day.lv4 {
+  background: color-mix(in srgb, #4f6ef7 42%, var(--card-2));
+}
+.cal-day.today {
+  border-color: var(--brand);
+}
+.cal-day.sel {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.cal-num {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.cal-total {
+  font-size: 9px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.cal-bars {
+  display: flex;
+  gap: 2px;
+}
+.cal-bars i {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  display: inline-block;
 }
 </style>

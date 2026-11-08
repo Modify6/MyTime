@@ -2,7 +2,7 @@
 // 统计页：日/周/月汇总、分类占比、Top 事项、柳比歇夫式报告、环比上期
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { showToast } from 'vant';
-import { getEventsBetween, getCategories, onChange } from '../db/repo.js';
+import { getEventsBetween, getCategories, getAllPlanLogs, getPlans, onChange } from '../db/repo.js';
 import { rangeFor, shiftCursor, fmtDur } from '../lib/time.js';
 import {
   byCategory,
@@ -13,6 +13,7 @@ import {
   estimateByCategory,
   heatmapData,
 } from '../stats/aggregate.js';
+import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
 import { getAllEvents } from '../db/repo.js';
 import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
@@ -20,7 +21,8 @@ import SyncDot from '../components/SyncDot.vue';
 import { useCatalogStore } from '../stores/catalog.js';
 
 const catalog = useCatalogStore();
-const period = ref('day'); // day | week | month
+const period = ref('day'); // day | week | month | review
+const reviewGranularity = ref('week'); // 复盘粒度：周 | 月
 // 深色模式跟随系统（饼图描边/标签颜色随之切换）
 const isDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches || false);
 window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', (e) => (isDark.value = e.matches));
@@ -29,17 +31,24 @@ const events = ref([]);
 const prevEvents = ref([]);
 const categories = ref([]);
 const heatEvents = ref([]);
+const plans = ref([]);
+const planLogs = ref([]);
 const showReport = ref(false);
+
+// 复盘模式下数据范围跟随复盘粒度（周/月）
+const effPeriod = computed(() => (period.value === 'review' ? reviewGranularity.value : period.value));
 
 let un;
 async function load() {
-  const r = rangeFor(period.value, cursor.value);
-  const pr = rangeFor(period.value, shiftCursor(period.value, cursor.value, -1));
-  [events.value, prevEvents.value, categories.value, heatEvents.value] = await Promise.all([
+  const r = rangeFor(effPeriod.value, cursor.value);
+  const pr = rangeFor(effPeriod.value, shiftCursor(effPeriod.value, cursor.value, -1));
+  [events.value, prevEvents.value, categories.value, heatEvents.value, plans.value, planLogs.value] = await Promise.all([
     getEventsBetween(r.start, r.end),
     getEventsBetween(pr.start, pr.end),
     getCategories(),
     getAllEvents(),
+    getPlans(),
+    getAllPlanLogs(),
   ]);
 }
 onMounted(async () => {
@@ -47,9 +56,10 @@ onMounted(async () => {
   await load();
 });
 onUnmounted(() => un?.());
-watch([period, cursor], load);
+watch([period, cursor, reviewGranularity], load);
 
-const range = computed(() => rangeFor(period.value, cursor.value));
+const range = computed(() => rangeFor(effPeriod.value, cursor.value));
+const prevRange = computed(() => rangeFor(effPeriod.value, shiftCursor(effPeriod.value, cursor.value, -1)));
 
 // 时段标签
 function dayLabelOf(startMs) {
@@ -66,7 +76,7 @@ const monthLabel = computed(() => {
   return `${d.getFullYear()}年${d.getMonth() + 1}月`;
 });
 const headLabel = computed(() =>
-  period.value === 'day' ? dayLabelOf(range.value.start) : period.value === 'week' ? weekLabel.value : monthLabel.value
+  effPeriod.value === 'day' ? dayLabelOf(range.value.start) : effPeriod.value === 'week' ? weekLabel.value : monthLabel.value
 );
 
 const total = computed(() => totalMs(events.value));
@@ -128,8 +138,36 @@ async function copyReport() {
   }
 }
 
-const prev = () => (cursor.value = shiftCursor(period.value, cursor.value, -1));
-const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
+const prev = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, -1));
+const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1));
+
+// —— 复盘聚合（period === 'review'）——
+const review = computed(() => {
+  const args = {
+    events: events.value,
+    prevEvents: prevEvents.value,
+    plans: plans.value,
+    planLogs: planLogs.value,
+    start: range.value.start,
+    end: range.value.end,
+    prevStart: prevRange.value.start,
+    prevEnd: prevRange.value.end,
+  };
+  return {
+    planRows: buildReview(args),
+    catFlow: categoryFlow(args),
+    pauseTrend: pauseReasonTrend(args),
+  };
+});
+const flowMax = computed(() => Math.max(1, ...review.value.catFlow.map((f) => Math.max(f.nowMs, f.prevMs))));
+const pauseMax = computed(() => Math.max(1, ...review.value.pauseTrend.rows.map((r) => r.n)));
+const STATUS_LABEL = { waiting: '等待中', active: '进行中', paused: '已挂起', done: '已完成', cancelled: '已取消' };
+function statusLabel(s) {
+  return STATUS_LABEL[s] || s;
+}
+const planRowMax = computed(() =>
+  Math.max(1, ...review.value.planRows.flatMap((r) => [r.est || 0, r.actMs]))
+);
 </script>
 
 <template>
@@ -146,11 +184,16 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
           <button :class="{ active: period === 'day' }" @click="period = 'day'">日</button>
           <button :class="{ active: period === 'week' }" @click="period = 'week'">周</button>
           <button :class="{ active: period === 'month' }" @click="period = 'month'">月</button>
+          <button :class="{ active: period === 'review' }" @click="period = 'review'">复盘</button>
         </div>
       </div>
       <van-button size="small" round plain icon="arrow" @click="next" />
     </div>
     <div class="muted" style="text-align: center; margin: 6px 0 12px">{{ headLabel }}</div>
+    <div class="rv-gran" v-if="period === 'review'">
+      <button :class="{ active: reviewGranularity === 'week' }" @click="reviewGranularity = 'week'">按周</button>
+      <button :class="{ active: reviewGranularity === 'month' }" @click="reviewGranularity = 'month'">按月</button>
+    </div>
 
     <div class="card">
       <div class="stat-grid">
@@ -171,30 +214,119 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
       </div>
     </div>
 
-    <div class="card">
-      <div class="section-title" style="margin-top: 0">
-        <span>专注热力图</span>
-        <span class="muted">近半年 · {{ heat.activeDays }} 天有记录 · 共 {{ fmtDur(heat.total) }}</span>
-      </div>
-      <div class="heat">
-        <div class="heat-labels">
-          <span v-for="(l, i) in ['一', '', '三', '', '五', '', '']" :key="i">{{ l }}</span>
+    <!-- 复盘模式：计划 vs 实际 + 时间流向 + 挂起原因 -->
+    <template v-if="period === 'review'">
+      <div class="card">
+        <div class="section-title" style="margin-top: 0">
+          <span>计划 vs 实际</span>
+          <span class="muted">{{ review.planRows.length }} 个计划有投入</span>
         </div>
-        <div class="heat-grid">
-          <button
-            v-for="c in heat.cells"
-            :key="c.key"
-            class="heat-cell"
-            :class="'lv' + c.level"
-            :title="c.ms != null ? c.key + ' · ' + fmtDur(c.ms) : ''"
-            @click="c.level >= 0 && jumpToDay(c.key)"
-          ></button>
+        <div v-if="review.planRows.length">
+          <div class="rv-plan" v-for="r in review.planRows" :key="r.planId">
+            <div class="rv-plan-head">
+              <b class="rv-plan-title">{{ r.title }}</b>
+              <span class="rv-status" :class="'st-' + r.status">{{ statusLabel(r.status) }}</span>
+            </div>
+            <div class="pa-bars" v-if="r.est">
+              <div class="track">
+                <div class="fill est" :style="{ width: (r.est / planRowMax) * 100 + '%' }"></div>
+              </div>
+              <div class="track">
+                <div class="fill act" :style="{ width: (r.actMs / planRowMax) * 100 + '%' }"></div>
+              </div>
+            </div>
+            <div class="rv-plan-val">
+              <template v-if="r.notStarted">未启动 · 预估 {{ fmtDur(r.est) }}</template>
+              <template v-else>
+                实际 {{ fmtDur(r.actMs) }}
+                <template v-if="r.pct != null">
+                  · <b :style="{ color: r.pct > 0 ? '#f5a623' : '#34c273' }">{{ r.pct > 0 ? '+' : '' }}{{ r.pct }}%</b>
+                </template>
+                <template v-else> · 无预估对照</template>
+              </template>
+            </div>
+          </div>
         </div>
+        <div v-else class="muted">本周期没有计划投入——从「计划」页启动计划，或打卡时关联计划</div>
       </div>
-      <div class="muted" style="margin-top: 6px">颜色越深投入越多 · 点格子在下方查看那一天的明细</div>
-    </div>
 
-    <div v-if="planActual" class="card">
+      <div class="card">
+        <div class="section-title" style="margin-top: 0">
+          <span>时间流向</span>
+          <span class="muted">本期 vs 上期</span>
+        </div>
+        <div v-if="review.catFlow.length">
+          <div class="pa-row" v-for="f in review.catFlow" :key="f.categoryId">
+            <span class="name">{{ catalog.catName(f.categoryId) }}</span>
+            <div class="pa-bars">
+              <div class="track">
+                <div class="fill act" :style="{ width: (f.nowMs / flowMax) * 100 + '%', '--c': catalog.catColor(f.categoryId) }"></div>
+              </div>
+              <div class="track">
+                <div class="fill prev" :style="{ width: (f.prevMs / flowMax) * 100 + '%' }"></div>
+              </div>
+            </div>
+            <span class="val">
+              {{ fmtDur(f.nowMs) }}
+              <b :style="{ color: f.diff > 0 ? '#f5a623' : f.diff < 0 ? '#34c273' : 'inherit' }">
+                {{ f.diff > 0 ? '+' : '' }}{{ f.diff < 0 ? '−' : '' }}{{ f.diff ? fmtDur(Math.abs(f.diff)) : '—' }}
+              </b>
+            </span>
+          </div>
+          <div class="pa-legend">
+            <span><i class="swatch" style="background: var(--brand)"></i>本期</span>
+            <span><i class="swatch" style="background: #98a2b3"></i>上期</span>
+          </div>
+        </div>
+        <div v-else class="muted">本周期暂无记录</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title" style="margin-top: 0">
+          <span>挂起原因</span>
+          <span class="muted">共 {{ review.pauseTrend.total }} 次 · 上期 {{ review.pauseTrend.prevTotal }} 次</span>
+        </div>
+        <div v-if="review.pauseTrend.rows.length">
+          <div class="pa-row" v-for="r in review.pauseTrend.rows" :key="r.reason">
+            <span class="name">{{ r.reason }}</span>
+            <div class="track" style="flex: 1">
+              <div class="fill" style="background: #f5a623" :style="{ width: (r.n / pauseMax) * 100 + '%' }"></div>
+            </div>
+            <span class="val">
+              {{ r.n }} 次
+              <span class="muted">上期 {{ r.prevN }}</span>
+            </span>
+          </div>
+        </div>
+        <div v-else class="muted">本周期无挂起——执行节奏稳定 👍</div>
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="card">
+        <div class="section-title" style="margin-top: 0">
+          <span>专注热力图</span>
+          <span class="muted">近半年 · {{ heat.activeDays }} 天有记录 · 共 {{ fmtDur(heat.total) }}</span>
+        </div>
+        <div class="heat">
+          <div class="heat-labels">
+            <span v-for="(l, i) in ['一', '', '三', '', '五', '', '']" :key="i">{{ l }}</span>
+          </div>
+          <div class="heat-grid">
+            <button
+              v-for="c in heat.cells"
+              :key="c.key"
+              class="heat-cell"
+              :class="'lv' + c.level"
+              :title="c.ms != null ? c.key + ' · ' + fmtDur(c.ms) : ''"
+              @click="c.level >= 0 && jumpToDay(c.key)"
+            ></button>
+          </div>
+        </div>
+        <div class="muted" style="margin-top: 6px">颜色越深投入越多 · 点格子在下方查看那一天的明细</div>
+      </div>
+
+      <div v-if="planActual" class="card">
       <div class="section-title" style="margin-top: 0">
         <span>计划 vs 实际</span>
         <span class="muted">{{ planActual.count }} 条有预估</span>
@@ -247,10 +379,78 @@ const next = () => (cursor.value = shiftCursor(period.value, cursor.value, 1));
       </div>
       <pre class="report-pre">{{ report }}</pre>
     </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
+.rv-gran {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.rv-gran button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 4px 16px;
+  font-size: 12px;
+}
+.rv-gran button.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 600;
+}
+.rv-plan {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.rv-plan:last-child {
+  border-bottom: 0;
+}
+.rv-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.rv-plan-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rv-status {
+  flex: none;
+  font-size: 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+.rv-status.st-done,
+.rv-status.st-active {
+  color: #34c273;
+}
+.rv-status.st-paused {
+  color: #f5a623;
+}
+.rv-status.st-waiting {
+  color: var(--text-3);
+}
+.rv-status.st-cancelled {
+  color: var(--text-3);
+}
+.rv-plan-val {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+.pa-bars .fill.prev {
+  background: #98a2b3;
+}
 .stats-nav {
   display: flex;
   align-items: center;
