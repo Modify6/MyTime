@@ -1,17 +1,24 @@
 #!/usr/bin/env node
-// 工具链自举：缺什么装什么，让 apk.bat 在任何新机器上零手工准备
-//   node setup-toolchain.mjs jdk          —— 便携 JDK 21 → %LOCALAPPDATA%\MyTime\jdk（清华镜像）
-//   node setup-toolchain.mjs android-sdk  —— cmdline-tools + licenses + platforms/build-tools → %LOCALAPPDATA%\Android\Sdk
+// 工具链自举：缺什么装什么，装进工作文件夹 toolchain/（随整文件夹迁移携带，新机零下载）
+//   node setup-toolchain.mjs jdk          —— JDK 21 → <zi>/toolchain/jdk（清华镜像）
+//   node setup-toolchain.mjs android-sdk  —— Android SDK → <zi>/toolchain/android-sdk
 //   node setup-toolchain.mjs all          —— 上面两个按顺序
-// 均为标准路径：apk.bat / Android Studio 生态自动识别；已存在则跳过（幂等）。
+// 优先级：工作文件夹已有 → 跳过；本机标准位置（%LOCALAPPDATA%）已有 → 收编（免下载）；
+// 都没有 → 下载安装。apk.bat 自动探测 toolchain 路径，无需环境变量。
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const HOME = os.homedir();
-const JDK_DIR = path.join(HOME, 'AppData', 'Local', 'MyTime', 'jdk');
-const SDK_DIR = path.join(HOME, 'AppData', 'Local', 'Android', 'Sdk');
+const MIGRATE_VERSION = '1';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TOOLCHAIN = path.resolve(ROOT, '..', 'toolchain'); // E:\study\zi\toolchain
+const JDK_DIR = path.join(TOOLCHAIN, 'jdk');
+const SDK_DIR = path.join(TOOLCHAIN, 'android-sdk');
+// 本机标准位置（旧安装）——存在则直接收编，不重新下载
+const JDK_LEGACY = path.join(os.homedir(), 'AppData', 'Local', 'MyTime', 'jdk');
+const SDK_LEGACY = path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk');
 const MODE = process.argv[2] || 'all';
 
 const die = (m) => { console.error('[错误] ' + m); process.exit(1); };
@@ -39,18 +46,24 @@ function psExpand(zip, destDir) {
 // —— JDK 21（清华 Adoptium 镜像，取最新版）——
 async function ensureJdk() {
   if (fs.existsSync(path.join(JDK_DIR, 'bin', 'java.exe'))) {
-    console.log('[JDK] 已存在：' + JDK_DIR + '（跳过）');
+    console.log('[JDK] 工作文件夹已内置：' + JDK_DIR + '（跳过）');
     return;
   }
-  console.log('[JDK] 未安装，从清华镜像获取 Adoptium JDK 21 ...');
+  if (fs.existsSync(path.join(JDK_LEGACY, 'bin', 'java.exe'))) {
+    console.log('[JDK] 本机标准位置已有安装，收编进工作文件夹（免下载）...');
+    fs.cpSync(JDK_LEGACY, JDK_DIR, { recursive: true });
+    console.log('[JDK] 收编完成：' + JDK_DIR);
+    return;
+  }
+  console.log('[JDK] 从清华镜像获取 Adoptium JDK 21 ...');
   const listUrl = 'https://mirrors.tuna.tsinghua.edu.cn/Adoptium/21/jdk/x64/windows/';
   const html = await (await fetch(listUrl)).text();
   const names = [...new Set([...html.matchAll(/OpenJDK21U-jdk_x64_windows_hotspot_[\w.]+\.zip/g)].map((m) => m[0]))].sort();
   if (!names.length) die('清华镜像目录里没找到 JDK 21 的 zip（镜像结构可能变化）');
   const name = names[names.length - 1];
   console.log('  选用：' + name);
-  const zip = await download(listUrl + name, path.join(HOME, 'AppData', 'Local', 'MyTime', '_jdk.zip'));
-  const extract = path.join(HOME, 'AppData', 'Local', 'MyTime', '_jdk-extract');
+  const zip = await download(listUrl + name, path.join(TOOLCHAIN, '_jdk.zip'));
+  const extract = path.join(TOOLCHAIN, '_jdk-extract');
   fs.rmSync(extract, { recursive: true, force: true });
   psExpand(zip, extract);
   const inner = fs.readdirSync(extract).find((d) => fs.existsSync(path.join(extract, d, 'bin', 'java.exe')));
@@ -70,18 +83,23 @@ async function ensureAndroidSdk() {
   const jdkBin = path.join(JDK_DIR, 'bin');
 
   if (!fs.existsSync(sdkManager)) {
-    console.log('[SDK] 未安装 cmdline-tools，从 dl.google.com 获取 ...');
-    const url = 'https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip';
-    const zip = await download(url, path.join(SDK_DIR, '_cmdline-tools.zip'));
-    const extract = path.join(SDK_DIR, '_clt-extract');
-    fs.rmSync(extract, { recursive: true, force: true });
-    psExpand(zip, extract);
-    // zip 内是 cmdline-tools/，需落到 Sdk/cmdline-tools/latest/
-    fs.rmSync(path.join(SDK_DIR, 'cmdline-tools'), { recursive: true, force: true });
-    fs.mkdirSync(path.join(SDK_DIR, 'cmdline-tools'), { recursive: true });
-    fs.renameSync(path.join(extract, 'cmdline-tools'), clt);
-    fs.rmSync(extract, { recursive: true, force: true });
-    fs.rmSync(zip, { force: true });
+    if (fs.existsSync(path.join(SDK_LEGACY, 'cmdline-tools', 'latest', 'bin', 'sdkmanager.bat'))) {
+      console.log('[SDK] 本机标准位置已有安装，收编进工作文件夹（免下载）...');
+      fs.cpSync(SDK_LEGACY, SDK_DIR, { recursive: true });
+    } else {
+      console.log('[SDK] 从 dl.google.com 获取 cmdline-tools ...');
+      const url = 'https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip';
+      const zip = await download(url, path.join(TOOLCHAIN, '_cmdline-tools.zip'));
+      const extract = path.join(TOOLCHAIN, '_clt-extract');
+      fs.rmSync(extract, { recursive: true, force: true });
+      psExpand(zip, extract);
+      // zip 内是 cmdline-tools/，需落到 Sdk/cmdline-tools/latest/
+      fs.rmSync(path.join(SDK_DIR, 'cmdline-tools'), { recursive: true, force: true });
+      fs.mkdirSync(path.join(SDK_DIR, 'cmdline-tools'), { recursive: true });
+      fs.renameSync(path.join(extract, 'cmdline-tools'), clt);
+      fs.rmSync(extract, { recursive: true, force: true });
+      fs.rmSync(zip, { force: true });
+    }
   } else console.log('[SDK] cmdline-tools 已存在（跳过下载）');
 
   if (!fs.existsSync(path.join(JDK_DIR, 'bin', 'java.exe')))
@@ -106,5 +124,5 @@ async function ensureAndroidSdk() {
 (async () => {
   if (MODE === 'jdk' || MODE === 'all') await ensureJdk();
   if (MODE === 'android-sdk' || MODE === 'all') await ensureAndroidSdk();
-  console.log('\n工具链自举完成——可以直接运行 apk.bat 打包了。');
+  console.log('\n工具链自举完成——可以直接运行 apk.bat 打包了（Gradle 缓存同样收在 toolchain/gradle-home）。');
 })().catch((e) => die(String(e).split('\n')[0]));

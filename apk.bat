@@ -13,38 +13,37 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem ---- 工具链自举：缺便携 JDK / Android SDK 时自动下载安装（一次性） ----
-if not exist "%LOCALAPPDATA%\MyTime\jdk\bin\java.exe" (
-  echo [工具链] 未检测到便携 JDK，自动下载安装（清华镜像，约 200MB，一次性）...
+rem ---- 工具链定位：优先工作文件夹 toolchain（随整个 zi 目录迁移携带），其次本机标准位置 ----
+set "TC_JDK="
+set "TC_SDK="
+if exist "%~dp0..\toolchain\jdk\bin\java.exe" set "TC_JDK=%~dp0..\toolchain\jdk"
+if not defined TC_JDK if exist "%LOCALAPPDATA%\MyTime\jdk\bin\java.exe" set "TC_JDK=%LOCALAPPDATA%\MyTime\jdk"
+if exist "%~dp0..\toolchain\android-sdk\platforms\android-35" set "TC_SDK=%~dp0..\toolchain\android-sdk"
+if not defined TC_SDK if exist "%LOCALAPPDATA%\Android\Sdk\platforms\android-35" set "TC_SDK=%LOCALAPPDATA%\Android\Sdk"
+
+rem ---- 自举：两处都没有 → 自动下载安装进工作文件夹 toolchain（一次性，之后随迁移携带） ----
+if not defined TC_JDK (
+  echo [工具链] 未检测到 JDK，自动下载安装（清华镜像，约 200MB，一次性）...
   call node scripts\setup-toolchain.mjs jdk
   if errorlevel 1 goto :fail
+  set "TC_JDK=%~dp0..\toolchain\jdk"
 )
-if not exist "%LOCALAPPDATA%\Android\Sdk\platforms\android-35" (
-  echo [工具链] 未检测到 Android SDK，自动下载安装（dl.google.com，约 600MB，一次性）...
+if not defined TC_SDK (
+  echo [工具链] 未检测到 Android SDK，自动下载安装（约 600MB，一次性）...
   call node scripts\setup-toolchain.mjs android-sdk
   if errorlevel 1 goto :fail
+  set "TC_SDK=%~dp0..\toolchain\android-sdk"
 )
 
-rem ---- Java：优先 JAVA_HOME，其次本工具链，再次 Android Studio 自带 JBR ----
-if not defined JAVA_HOME (
-  if exist "%LOCALAPPDATA%\MyTime\jdk\bin\java.exe" set "JAVA_HOME=%LOCALAPPDATA%\MyTime\jdk"
-)
-if not defined JAVA_HOME (
-  if exist "C:\Program Files\Android\Android Studio\jbr\bin\java.exe" set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-)
-if defined JAVA_HOME set "PATH=%JAVA_HOME%\bin;%PATH%"
-where java >nul 2>nul
-if errorlevel 1 (
-  echo [错误] Java 自举失败。请把上方输出发给开发者，或手动安装 Android Studio：
-  echo   https://developer.android.com/studio
-  pause
-  exit /b 1
-)
-
-rem ---- 安卓 SDK：常见默认位置（含本工具链） ----
-if not defined ANDROID_HOME (
-  if exist "%LOCALAPPDATA%\Android\Sdk\platforms" set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
-)
+rem ---- 环境注入：Java / Android SDK / Gradle 缓存全部收在工作文件夹内 ----
+for %%I in ("%~dp0..\toolchain") do set "TOOLCHAIN_DIR=%%~fI"
+set "JAVA_HOME=%TC_JDK%"
+set "PATH=%TC_JDK%\bin;%PATH%"
+set "ANDROID_HOME=%TC_SDK%"
+set "GRADLE_USER_HOME=%TOOLCHAIN_DIR%\gradle-home"
+echo [工具链] JDK=%TC_JDK%
+echo [工具链] SDK=%TC_SDK%
+echo [工具链] Gradle缓存=%GRADLE_USER_HOME%
 
 rem ---- 首次运行安装壳工程依赖 ----
 if not exist "app\node_modules" (
@@ -63,8 +62,8 @@ call npx cap sync android
 if errorlevel 1 goto :fail
 cd android
 
-echo 第 3/3 步：Gradle 打包（首次会下载 Gradle 与依赖，可能 10 分钟以上）...
-call node scripts\sync-version.mjs
+echo 第 3/3 步：Gradle 打包（首次会下载 Gradle 与依赖到 toolchain\gradle-home，可能 10 分钟以上）...
+call node ..\..\scripts\sync-version.mjs
 call gradlew.bat assembleDebug
 if errorlevel 1 goto :fail
 cd ..\..
