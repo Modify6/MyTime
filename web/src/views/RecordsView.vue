@@ -13,7 +13,8 @@ import { bindBackClose } from '../lib/native.js';
 const catalog = useCatalogStore();
 
 // —— 单日时间轴弹层：竖向时间标尺（参照 Atimelogger / 日历类 App）——
-// 自适应时间范围与行高，事件条带全宽显示"标题 · 时长"，空白时段在标尺上一目了然
+// 自适应时间范围与行高；条带宽度按"自身存续期间的最大并发泳道数"等分——
+// 不重叠的条带恢复全宽，重叠/相接的条带并排（日历类标准行为）
 const axisDay = ref(null);
 
 function dayBounds(key) {
@@ -59,29 +60,43 @@ const axisNowTop = computed(() => {
   return Math.max(0, Math.min(trackHeight.value, top));
 });
 
-// 事件条带：泳道重叠时按 lane 序号等分宽度并排
+// 事件条带：宽度 = 100 / 与自己时间相交的条带所涉及的最大并发泳道数；
+// 高度按真实时长比例（下限 6px——秒级碎片渲染为细条），高度 ≥18px 才显示文字
 const axisLanes = computed(() => {
   if (!axisDay.value) return [];
   const { dayStart, dayEnd } = dayBounds(axisDay.value);
   const { start: rStart } = axisRange.value;
   const pph = pxPerHour.value;
-  const lanes = layoutDayLanes(dayEvents(axisDay.value));
-  const n = Math.max(1, lanes.length);
-  return lanes.map((lane, li) =>
-    lane.map((s) => {
+
+  // 展平为条带（含泳道号与当日截断区间）
+  const bands = [];
+  layoutDayLanes(dayEvents(axisDay.value)).forEach((lane, li) =>
+    lane.forEach((s) => {
       const st = Math.max(s.start, dayStart);
       const en = Math.min(s.end ?? Date.now(), dayEnd);
-      return {
-        event: s.event,
-        top: ((st - dayStart) / 3_600_000 - rStart) * pph,
-        height: Math.max(((en - st) / 3_600_000) * pph, 20),
-        left: li * (100 / n),
-        width: 100 / n,
-        color: catalog.catColor(s.event.categoryId),
-        label: `${s.event.title} · ${fmtDur(en - st)}`,
-      };
+      bands.push({ event: s.event, li, st, en, color: catalog.catColor(s.event.categoryId) });
     })
   );
+
+  return bands.map((b) => {
+    // 与 b 时间相交（半开区间）的条带 → 涉及的泳道数 c → 等分宽度，b 按泳道号排位偏移
+    const crossing = bands.filter((o) => o.st < b.en && o.en > b.st);
+    const lanesInvolved = [...new Set(crossing.map((o) => o.li))].sort((a, z) => a - z);
+    const c = Math.max(1, lanesInvolved.length);
+    const pos = lanesInvolved.indexOf(b.li);
+    const top = ((b.st - dayStart) / 3_600_000 - rStart) * pph;
+    const height = Math.max(((b.en - b.st) / 3_600_000) * pph, 6);
+    return {
+      event: b.event,
+      top,
+      height,
+      left: pos * (100 / c),
+      width: 100 / c,
+      color: b.color,
+      label: `${b.event.title} · ${fmtDur(b.en - b.st)}`,
+      showText: height >= 18,
+    };
+  });
 });
 const axisStats = computed(() => {
   if (!axisDay.value) return null;
@@ -211,16 +226,14 @@ function addRecord() {
               :style="{ top: (h - axisRange.start) * pxPerHour + 'px' }"
             />
             <div v-if="axisIsToday && axisNowTop != null" class="axis-now" :style="{ top: axisNowTop + 'px' }" />
-            <div v-for="(lane, li) in axisLanes" :key="li">
-              <div
-                v-for="(b, bi) in lane"
-                :key="bi"
-                class="axis-block"
-                :style="{ top: b.top + 'px', left: b.left + '%', width: b.width + '%', height: b.height + 'px', background: b.color }"
-                @click="openEdit(b.event)"
-              >
-                <span class="axis-block-text">{{ b.label }}</span>
-              </div>
+            <div
+              v-for="(b, bi) in axisLanes"
+              :key="bi"
+              class="axis-block"
+              :style="{ top: b.top + 'px', left: b.left + '%', width: b.width + '%', height: b.height + 'px', background: b.color }"
+              @click="openEdit(b.event)"
+            >
+              <span v-if="b.showText" class="axis-block-text">{{ b.label }}</span>
             </div>
             <div v-if="!axisLanes.length" class="axis-empty">该日暂无记录</div>
           </div>
@@ -264,6 +277,9 @@ function addRecord() {
 .axis-body {
   display: flex;
   gap: 6px;
+  max-height: 56vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .axis-gutter {
   position: relative;
@@ -304,7 +320,7 @@ function addRecord() {
 }
 .axis-block {
   position: absolute;
-  border-radius: 5px;
+  border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
   z-index: 1;
@@ -317,7 +333,7 @@ function addRecord() {
   font-size: 11px;
   color: #fff;
   padding: 0 5px;
-  line-height: 20px;
+  line-height: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

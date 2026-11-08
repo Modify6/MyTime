@@ -91,7 +91,9 @@ export function dailySeries(events, { days = 30, end = Date.now() } = {}) {
   return out;
 }
 
-// 单日 24 小时时间轴：把重叠事件分配到互不重叠的泳道（贪心）
+// 单日 24 小时时间轴：把时间重叠的事件分配到互不重叠的泳道（贪心）。
+// 相接（start == 前者 end）也视为视觉冲突另起泳道——时间轴渲染层按"局部并发数"
+// 等分条带宽度，相接事件并排显示（日历类 App 标准行为），不重叠的条带恢复全宽。
 export function layoutDayLanes(events) {
   const segs = events
     .filter((e) => e.endAt != null)
@@ -99,13 +101,13 @@ export function layoutDayLanes(events) {
     .sort((a, b) => a.start - b.start);
   const lanes = [];
   for (const s of segs) {
-    let lane = lanes.find((l) => s.start >= l.end);
+    let lane = lanes.find((l) => s.start > l.end);
     if (!lane) {
       lane = { end: 0, items: [] };
       lanes.push(lane);
     }
     lane.items.push(s);
-    lane.end = s.end;
+    lane.end = Math.max(lane.end, s.end);
   }
   return lanes.map((l) => l.items);
 }
