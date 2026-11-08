@@ -1,6 +1,6 @@
 {
   "name": "mytime-web",
-  "version": "0.11.5",
+  "version": "0.11.11",
   "private": true,
   "type": "module",
   "scripts": {
