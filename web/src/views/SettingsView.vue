@@ -12,6 +12,7 @@ import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
 import { isNativeApp, nativeReminder, bindBackClose, openAppSettings } from '../lib/native.js';
+import VersionHistory from '../components/VersionHistory.vue';
 import dayjs from 'dayjs';
 
 const auth = useAuthStore();
@@ -79,6 +80,7 @@ async function logout() {
 
 // —— 分类管理 ——
 const showCatForm = ref(false);
+const showVersionHistory = ref(false); // 版本迭代史弹层
 const catForm = ref({});
 const PALETTE = ['#4f6ef7', '#7c4dff', '#00acc1', '#43a047', '#f0a800', '#ff7043', '#ec407a', '#8d6e63', '#90a4ae'];
 
@@ -449,7 +451,13 @@ onUnmounted(() => clearInterval(logTimer));
         记录每一件事的"纯时间"，日/周/月统计回顾，开始一件事前先看看历史用时 ——
         让统计反馈决策，逐步掌控自己的时间。
       </div>
+      <div class="about-row" @click="showVersionHistory = true">
+        <span>版本迭代</span>
+        <span class="about-link">v{{ APP_VERSION }} ›</span>
+      </div>
     </div>
+
+    <VersionHistory v-model:show="showVersionHistory" />
 
     <!-- 分类表单 -->
     <van-popup
@@ -560,6 +568,23 @@ onUnmounted(() => clearInterval(logTimer));
 }
 .van-button {
   margin-top: 16px;
+}
+.about-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  cursor: pointer;
+}
+.about-row:active {
+  opacity: 0.7;
+}
+.about-link {
+  color: var(--brand);
+  font-size: 12px;
 }
 .about-text {
   line-height: 1.8;

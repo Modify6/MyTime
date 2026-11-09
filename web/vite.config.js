@@ -3,10 +3,13 @@ import vue from '@vitejs/plugin-vue';
 import Components from 'unplugin-vue-components/vite';
 import { VantResolver } from '@vant/auto-import-resolver';
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import pkg from './package.json';
 
-// 构建时注入版本号，日志与设置页展示（每次发版 bump package.json 的 version）
+// 构建时注入版本号与版本迭代史（CHANGELOG.md 为唯一源，随包内置离线可用）
 const APP_VERSION = pkg.version;
+const APP_CHANGELOG = readFileSync(path.resolve(import.meta.dirname, '../CHANGELOG.md'), 'utf8');
 
 export default defineConfig({
   plugins: [
@@ -46,7 +49,10 @@ export default defineConfig({
     proxy: { '/api': { target: 'http://localhost:3128', changeOrigin: true } },
   },
   build: { chunkSizeWarningLimit: 1500 },
-  define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __APP_CHANGELOG__: JSON.stringify(APP_CHANGELOG),
+  },
   test: {
     environment: 'node',
     // 单测只收 tests/ 目录；e2e/*.spec.js 归 Playwright（混入会被 vitest 加载并报 describe 冲突）
