@@ -1,6 +1,6 @@
 // 目标进度计算单测
 import { describe, expect, it } from 'vitest';
-import { goalProgress } from '../src/stats/goals.js';
+import { goalProgress, budgetProgress } from '../src/stats/goals.js';
 
 // 固定一周：2026-11-09（周一）00:00 ~ 11-16 00:00 本地时区
 const WEEK_START = new Date(2026, 10, 9).getTime();
@@ -99,5 +99,36 @@ describe('goalProgress', () => {
 
   it('无匹配目标返回空数组', () => {
     expect(goalProgress([], [mkEv()], { kind: 'weekly', start: WEEK_START, end: WEEK_END })).toEqual([]);
+  });
+});
+
+describe('budgetProgress', () => {
+  const mkCat = (over = {}) => ({ id: 'cat-fun', name: '娱乐', color: '#ec407a', budgetHours: 10, deleted: 0, ...over });
+
+  it('只取设了预算且未删除的分类', () => {
+    const cats = [mkCat(), mkCat({ id: 'x', budgetHours: null }), mkCat({ id: 'y', deleted: 1 })];
+    const rows = budgetProgress(cats, [mkEv()], { start: WEEK_START, end: WEEK_END });
+    expect(rows.map((r) => r.categoryId)).toEqual(['cat-fun']);
+  });
+
+  it('按周期内分类汇总并给出三态', () => {
+    const events = [
+      mkEv({ id: 'a', goalId: null, categoryId: 'cat-fun', startAt: WEEK_START, endAt: WEEK_START + 9 * HOUR }),
+      mkEv({ id: 'b', goalId: null, categoryId: 'cat-fun', startAt: WEEK_START + 20 * HOUR, endAt: WEEK_START + 22 * HOUR }),
+      mkEv({ id: 'c', goalId: null, categoryId: 'cat-work', startAt: WEEK_START, endAt: WEEK_START + 5 * HOUR }),
+    ];
+    const [row] = budgetProgress([mkCat()], events, { start: WEEK_START, end: WEEK_END });
+    expect(row.ms).toBe(11 * HOUR);
+    expect(row.pct).toBe(110);
+    expect(row.over).toBe(true);
+    expect(row.overMs).toBe(HOUR);
+  });
+
+  it('接近预算 80%~100% 标记 near', () => {
+    const events = [mkEv({ goalId: null, categoryId: 'cat-fun', startAt: WEEK_START, endAt: WEEK_START + 8.5 * HOUR })];
+    const [row] = budgetProgress([mkCat()], events, { start: WEEK_START, end: WEEK_END });
+    expect(row.pct).toBe(85);
+    expect(row.near).toBe(true);
+    expect(row.over).toBe(false);
   });
 });

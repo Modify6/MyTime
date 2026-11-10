@@ -14,7 +14,7 @@ import {
   heatmapData,
 } from '../stats/aggregate.js';
 import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
-import { goalProgress, GOAL_KIND_LABEL } from '../stats/goals.js';
+import { goalProgress, budgetProgress, GOAL_KIND_LABEL } from '../stats/goals.js';
 import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
@@ -150,6 +150,15 @@ const goalCards = computed(() => {
     return reviewGranularity.value === 'week' ? withLabel(weekly, GOAL_KIND_LABEL.weekly) : withLabel(monthly, GOAL_KIND_LABEL.monthly);
   }
   return [...withLabel(weekly, GOAL_KIND_LABEL.weekly), ...withLabel(monthly, GOAL_KIND_LABEL.monthly)];
+});
+
+// 分类每周预算（上限）：日/周模式显示，超出琥珀警示
+const budgetCards = computed(() => {
+  if (period.value !== 'day' && period.value !== 'week') return [];
+  return budgetProgress(catalog.categories, heatEvents.value, {
+    start: weekRange.value.start,
+    end: weekRange.value.end,
+  });
 });
 
 
@@ -372,9 +381,9 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
       </div>
     </div>
 
-    <!-- 目标进度：每周/每月目标的投入对照 -->
-    <div class="card" v-if="goalCards.length">
-      <div class="section-title" style="margin-top: 0">目标进度</div>
+    <!-- 目标进度与预算：每周/每月目标（下限）+ 分类每周预算（上限） -->
+    <div class="card" v-if="goalCards.length || budgetCards.length">
+      <div class="section-title" style="margin-top: 0">目标与预算</div>
       <div class="gp-row" v-for="r in goalCards" :key="r.goal.id">
         <div class="gp-head">
           <span class="gp-name">
@@ -397,6 +406,26 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
             <span v-else class="muted">还差 {{ fmtDur(r.remainMs) }}</span>
           </template>
           <span v-else class="muted">还差 {{ fmtDur(r.remainMs) }}</span>
+        </div>
+      </div>
+      <div class="gp-row" v-for="b in budgetCards" :key="b.categoryId">
+        <div class="gp-head">
+          <span class="gp-name">
+            <span class="gp-kind gp-kind-budget">预算</span>
+            <i class="gp-dot" :style="{ background: b.color }"></i>{{ b.name }}
+          </span>
+          <span class="gp-val" :class="{ 'gp-over': b.over }">
+            {{ fmtDur(b.ms) }} / {{ b.budgetMs / 3_600_000 }}h
+          </span>
+        </div>
+        <div class="gp-track">
+          <div class="gp-fill" :class="{ over: b.over, near: b.near }" :style="{ width: Math.min(100, b.pct) + '%' }"></div>
+        </div>
+        <div class="gp-sub">
+          <span :class="{ 'gp-over': b.over, 'gp-near': b.near }">{{ b.pct }}%</span>
+          <span v-if="b.over" class="gp-over">已超出 {{ fmtDur(b.overMs) }} · 本周</span>
+          <span v-else-if="b.near" class="gp-behind">接近预算 · 剩 {{ fmtDur(b.budgetMs - b.ms) }}</span>
+          <span v-else class="muted">本周剩 {{ fmtDur(b.budgetMs - b.ms) }}</span>
         </div>
       </div>
     </div>
@@ -758,6 +787,22 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
   color: #34c273;
 }
 .gp-behind {
+  color: #f5a623;
+}
+.gp-kind-budget {
+  color: #f5a623;
+}
+.gp-fill.over {
+  background: #ee5a5a;
+}
+.gp-fill.near {
+  background: #f5a623;
+}
+.gp-over {
+  color: #ee5a5a;
+  font-weight: 600;
+}
+.gp-near {
   color: #f5a623;
 }
 .donut-legend {

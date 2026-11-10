@@ -12,6 +12,7 @@ import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
 import { isNativeApp, nativeReminder, bindBackClose, openAppSettings } from '../lib/native.js';
+import { dailyNotifyEnabled, dailyNotifyTime, setDailyNotify } from '../lib/daily-notify.js';
 import VersionHistory from '../components/VersionHistory.vue';
 import FeatureNote from '../components/FeatureNote.vue';
 import dayjs from 'dayjs';
@@ -96,7 +97,9 @@ function editCat(c) {
 }
 async function saveCat() {
   if (!(catForm.value.name || '').trim()) return showToast('请填写分类名称');
-  await catalog.saveCategory({ ...catForm.value, name: catForm.value.name.trim() });
+  const budget = catForm.value.budgetHours === '' || catForm.value.budgetHours == null ? null : Number(catForm.value.budgetHours);
+  if (budget != null && (!Number.isFinite(budget) || budget <= 0)) return showToast('预算需为正数');
+  await catalog.saveCategory({ ...catForm.value, name: catForm.value.name.trim(), budgetHours: budget });
   showCatForm.value = false;
   showToast('已保存');
 }
@@ -284,6 +287,20 @@ async function backupNow() {
 async function downloadBackup(b) {
   try {
     const blob = await api.backupDownload(b.name);
+    // APK 内 <a download> 不生效：写入缓存后走系统分享（用户可选保存到任何位置）
+    if (isNative) {
+      const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+      const Share = window.Capacitor?.Plugins?.Share;
+      if (!Filesystem || !Share) return showToast('请升级 APK 后使用');
+      const data = await blobToBase64(blob);
+      const file = await Filesystem.writeFile({
+        path: b.name,
+        data,
+        directory: 'CACHE', // Directory.Cache 的枚举值
+      });
+      await Share.share({ title: b.name, url: file.uri, dialogTitle: '保存快照' });
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = b.name;
@@ -291,6 +308,41 @@ async function downloadBackup(b) {
     URL.revokeObjectURL(a.href);
   } catch (e) {
     showToast(e.message || '下载失败');
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+// —— 每日结算提醒 ——
+const dailyNotify = ref(dailyNotifyEnabled());
+const dailyNotifyAt = ref(dailyNotifyTime());
+const notifySaving = ref(false);
+async function toggleDailyNotify(v) {
+  notifySaving.value = true;
+  try {
+    await setDailyNotify(v, dailyNotifyAt.value);
+    dailyNotify.value = v;
+    showToast(v ? `每天 ${dailyNotifyAt.value} 提醒结算` : '已关闭结算提醒');
+  } catch (e) {
+    showToast(e.message || '设置失败');
+  } finally {
+    notifySaving.value = false;
+  }
+}
+async function changeNotifyTime() {
+  if (!dailyNotify.value) return;
+  try {
+    await setDailyNotify(true, dailyNotifyAt.value);
+    showToast(`已改为每天 ${dailyNotifyAt.value}`);
+  } catch (e) {
+    showToast(e.message || '设置失败');
   }
 }
 
@@ -346,6 +398,20 @@ onUnmounted(() => clearInterval(logTimer));
       <div style="margin-top: 8px">
         <van-button size="small" round plain @click="openAppSettings">通知与自启动设置</van-button>
       </div>
+    </div>
+
+    <!-- 每日结算提醒（仅 APK 内可用）：柳比歇夫法核心习惯——逐日结算 -->
+    <div class="card" v-if="isNativeApp">
+      <div class="section-title" style="margin-top: 0">每日结算提醒</div>
+      <div class="backup-line">
+        <span>到点看今日小结</span>
+        <van-switch :model-value="dailyNotify" :loading="notifySaving" size="20px" @update:model-value="toggleDailyNotify" />
+      </div>
+      <div class="backup-line" v-if="dailyNotify">
+        <span>结算时间</span>
+        <input type="time" class="time-input" :value="dailyNotifyAt" @change="(e) => ((dailyNotifyAt = e.target.value || '21:30'), changeNotifyTime())" />
+      </div>
+      <div class="muted">固定时间弹「今日结算」通知，点开直达统计页。记录一天的时间去向，才是柳比歇夫法本身。</div>
     </div>
 
     <!-- 安装到手机 -->
@@ -471,6 +537,11 @@ onUnmounted(() => clearInterval(logTimer));
       <div class="sheet">
         <div class="sheet-title">{{ catForm.createdAt && catalog.categoryMap[catForm.id] ? '编辑分类' : '新增分类' }}</div>
         <van-field v-model="catForm.name" placeholder="分类名称（如：阅读、编程）" clearable />
+        <van-field
+          v-model="catForm.budgetHours"
+          type="number"
+          placeholder="每周预算上限（小时，选填，超出会警示）"
+        />
         <div class="field-label">颜色</div>
         <div class="palette">
           <button

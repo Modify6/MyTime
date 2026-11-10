@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 export const TABLES = {
-  categories: ['id', 'name', 'color', 'sort', 'createdAt', 'updatedAt', 'deleted'],
+  categories: ['id', 'name', 'color', 'sort', 'budgetHours', 'createdAt', 'updatedAt', 'deleted'],
   goals: ['id', 'name', 'description', 'color', 'targetType', 'targetHours', 'archived', 'createdAt', 'updatedAt', 'deleted'],
   events: ['id', 'title', 'categoryId', 'goalId', 'planId', 'startAt', 'endAt', 'note', 'estimateMs', 'createdAt', 'updatedAt', 'deleted'],
   plans: ['id', 'title', 'categoryId', 'goalId', 'estimateMs', 'note', 'kind', 'status', 'pauseReason', 'endReason', 'plannedDate', 'createdAt', 'updatedAt', 'deleted'],
@@ -14,7 +14,7 @@ export const TABLES = {
 };
 
 const INT_COLS = new Set(['sort', 'createdAt', 'updatedAt', 'deleted', 'startAt', 'endAt', 'archived', 'estimateMs']);
-const FLOAT_COLS = new Set(['targetHours']);
+const FLOAT_COLS = new Set(['targetHours', 'budgetHours']);
 
 export function openDb(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -23,7 +23,7 @@ export function openDb(dataDir) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "color" TEXT NOT NULL DEFAULT '#4F6EF7',
-      "sort" INTEGER NOT NULL DEFAULT 0, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "sort" INTEGER NOT NULL DEFAULT 0, "budgetHours" REAL, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS goals (
@@ -83,6 +83,10 @@ function migrateSchema(db) {
   const gcols = new Set(db.prepare('PRAGMA table_info(goals)').all().map((c) => c.name));
   if (gcols.size && !gcols.has('targetType')) {
     db.exec('ALTER TABLE goals ADD COLUMN "targetType" TEXT');
+  }
+  const ccols = new Set(db.prepare('PRAGMA table_info(categories)').all().map((c) => c.name));
+  if (ccols.size && !ccols.has('budgetHours')) {
+    db.exec('ALTER TABLE categories ADD COLUMN "budgetHours" REAL');
   }
   const t = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='templates'")

@@ -10,6 +10,10 @@ import { isNative, nativeTimer } from './lib/native.js';
 import { fmtDur } from './lib/time.js';
 import { getAllEvents, ensureSeed } from './db/repo.js';
 import { uuid } from './lib/util.js';
+import { useRouter } from 'vue-router';
+import { ensureDailyNotifyRescheduled, onDailyNotifyTap } from './lib/daily-notify.js';
+
+const router = useRouter();
 
 const timer = useTimerStore();
 const catalog = useCatalogStore();
@@ -25,6 +29,9 @@ onMounted(async () => {
   await ensureSeed();
   await Promise.all([timer.refresh(), catalog.load()]);
   if (isLoggedIn()) sync.setup();
+  // 每日结算提醒：幂等重排 + 点通知直达统计页
+  ensureDailyNotifyRescheduled();
+  onDailyNotifyTap(() => router.push('/stats'));
   // 原生 App：通知栏"结束打卡"按钮 → 正常落账
   if (isNative) {
     nativeTimer()?.addListener?.('timerStopRequested', async () => {

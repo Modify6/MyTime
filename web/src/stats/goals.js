@@ -39,3 +39,33 @@ export function goalProgress(goals, events, { kind, start, end, now = Date.now()
     };
   });
 }
+
+/**
+ * 分类每周预算（上限）：投入越接近/超出预算越要警示（与目标的下限语义成对）
+ * @param {Array} categories 分类列表（budgetHours: 每周上限小时数，空视为未设）
+ * @param {Array} events 事件列表
+ * @param {{ start: number, end: number }} opts 周期范围
+ * @returns { categoryId, name, color, ms, budgetMs, pct, over, near }[]
+ */
+export function budgetProgress(categories, events, { start, end }) {
+  const list = (categories || []).filter((c) => c && !c.deleted && c.budgetHours > 0);
+  if (!list.length) return [];
+  const within = (events || []).filter((e) => e && !e.deleted && e.categoryId && e.startAt < end && (e.endAt ?? e.startAt) >= start);
+  return list.map((c) => {
+    const ms = totalMs(within.filter((e) => e.categoryId === c.id));
+    const budgetMs = c.budgetHours * 3_600_000;
+    const pct = (ms / budgetMs) * 100;
+    const over = pct > 100;
+    return {
+      categoryId: c.id,
+      name: c.name,
+      color: c.color,
+      ms,
+      budgetMs,
+      pct: Math.round(pct),
+      over,
+      near: !over && pct >= 80,
+      overMs: Math.max(0, ms - budgetMs),
+    };
+  });
+}
