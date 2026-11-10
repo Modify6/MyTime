@@ -1,0 +1,4 @@
+{
+ "msg": "TypeError: Cannot read properties of undefined (reading 'toArray')",
+ "stack": "TypeError: Cannot read properties of undefined (reading 'toArray')\n    at tw (http://localhost:3130/assets/index-gaYwXG5N.js:4:96910)\n    at Proxy.load (http://localhost:3130/assets/index-gaYwXG5N.js:6:2666)\n    at Proxy.ne (http://localhost:3130/assets/index-gaYwXG5N.js:2:82402)\n    at http://localhost:3130/assets/index-gaYwXG5N.js:6:2716\n    at http://localhost:3130/assets/index-gaYwXG5N.js:4:96192"
+}

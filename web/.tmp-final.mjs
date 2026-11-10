@@ -1,0 +1,31 @@
+import { chromium } from '@playwright/test';
+const b = await chromium.launch();
+const page = await b.newPage({ viewport: { width: 390, height: 844 } });
+let errs = [];
+page.on('pageerror', async (e) => {
+  errs.push(String(e).split('\n')[0]);
+  const st = await page.evaluate(() => {
+    const db = window.__mytimeDebug?.db;
+    const btns = [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((t) => t && t.length < 12);
+    return { verno: db?.verno, hasTpl: !!db?.templates, buttons: btns.slice(0, 20) };
+  });
+  console.log('PAGEERROR:', errs[errs.length - 1], '| 现场:', JSON.stringify(st).slice(0, 400));
+});
+await page.goto('http://localhost:3131/plans');
+await page.waitForTimeout(1500);
+await page.locator('.plan-tabs').getByRole('button', { name: '模板' }).click();
+await page.waitForTimeout(500);
+await page.getByRole('button', { name: '新建模板' }).click();
+await page.waitForTimeout(500);
+await page.locator('.tpl-form input[type="text"]').first().fill('晨间启动例程');
+const ti = page.locator('.tpl-form input[type="text"]');
+await ti.nth(1).fill('查看今日计划');
+await page.getByPlaceholder('预估/分').fill('5');
+await page.getByRole('button', { name: '加一个子任务' }).click();
+await ti.nth(2).fill('复盘昨日');
+await page.getByPlaceholder('预估/分').nth(1).fill('15');
+await page.getByRole('button', { name: '保存模板' }).click();
+await page.waitForTimeout(2000);
+console.log('保存后可见按钮:', JSON.stringify([...document] && (await page.evaluate(() => [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((t) => t && t.length < 16)))));
+await page.screenshot({ path: 'E:/study/zi/MyTime/.tpl-final.png' });
+await b.close();

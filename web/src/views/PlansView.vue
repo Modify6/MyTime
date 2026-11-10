@@ -12,12 +12,14 @@ import PlanForm from '../components/PlanForm.vue';
 import HandoffDialog from '../components/HandoffDialog.vue';
 import PauseReasonDialog from '../components/PauseReasonDialog.vue';
 import PlanCloseDialog from '../components/PlanCloseDialog.vue';
+import TemplateManager from '../components/TemplateManager.vue';
 
 const router = useRouter();
 const planStore = usePlanStore();
 const timer = useTimerStore();
 const catalog = useCatalogStore();
 
+const planTab = ref('plans'); // plans | templates
 const showForm = ref(false);
 const editingPlan = ref(null);
 const handoffPlan = ref(null);
@@ -135,11 +137,19 @@ function openDetail(p) {
   <div class="page">
     <div class="page-head">
       <h1>计划</h1>
-      <van-button size="small" plain round icon="plus" @click="openForm">新建</van-button>
+      <van-button v-if="planTab === 'plans'" size="small" plain round icon="plus" @click="openForm">新建</van-button>
     </div>
 
+    <div class="plan-tabs">
+      <button :class="{ active: planTab === 'plans' }" @click="planTab = 'plans'">计划</button>
+      <button :class="{ active: planTab === 'templates' }" @click="planTab = 'templates'">模板</button>
+    </div>
+
+    <!-- 模板管理 -->
+    <TemplateManager v-if="planTab === 'templates'" @instantiated="planTab = 'plans'" />
+
     <!-- 执行中 -->
-    <template v-if="activeList.length">
+    <template v-if="planTab === 'plans' && activeList.length">
       <div class="section-title">执行中</div>
       <div class="card plan-card" v-for="p in activeList" :key="p.id">
         <div class="plan-head" @click="openDetail(p)">

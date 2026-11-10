@@ -29,8 +29,9 @@ export const PAUSE_REASONS = ['临时插入更紧急的事', '等待外部条件
 // - 启动新计划遇冲突时必须对当前计划做「挂起（填原因）」或「结束（填原因）」
 // - 任何路径结束计时段（通知/磁贴/手动）→ reconcile 自动把计划转「挂起」，原因可补填
 export const usePlanStore = defineStore('plan', {
-  state: () => ({ plans: [], loaded: false, _reconciling: false }),
+  state: () => ({ plans: [], loaded: false, _reconciling: false, templates: [] }),
   getters: {
+    templateById: (s) => (id) => s.templates.find((t) => t.id === id) || null,
     activePlan: (s) => s.plans.find((p) => p.status === 'active') || null,
     pausedPlans: (s) =>
       s.plans.filter((p) => p.status === 'paused').sort((a, b) => b.updatedAt - a.updatedAt),
@@ -207,6 +208,65 @@ export const usePlanStore = defineStore('plan', {
       await this.appendLog(plan.id, logAction, reason);
     },
 
+    // —— 事件组模板：定义一组子任务，一键实例化为待执行计划组 ——
+    async loadTemplates() {
+      const rows = await getTemplates();
+      this.templates = rows.map((t) => {
+        let items = [];
+        try { items = JSON.parse(t.items || '[]'); } catch {}
+        return { ...t, items };
+      });
+    },
+    async saveTemplate({ id, name, items }) {
+      if (!name?.trim()) throw new Error('请填写模板名称');
+      const clean = (items || []).filter((it) => it.title?.trim());
+      if (!clean.length) throw new Error('至少保留一个子任务');
+      const row = {
+        id: id || uuid(),
+        name: name.trim(),
+        items: JSON.stringify(clean.map((it) => ({ title: it.title.trim(), estimateMs: it.estimateMs > 0 ? it.estimateMs : null }))),
+        createdAt: id ? this.templateById(id)?.createdAt || Date.now() : Date.now(),
+        updatedAt: Date.now(),
+        deleted: 0,
+      };
+      await putRow('templates', row);
+      await this.loadTemplates();
+      logInfo('plan', id ? `更新模板「${row.name}」` : `新建模板「${row.name}」（${clean.length} 个子任务）`);
+      return row;
+    },
+    async removeTemplate(id) {
+      await softDelete('templates', id);
+      await this.loadTemplates();
+      logInfo('plan', '删除模板');
+    },
+    // 实例化：每个子任务生成一个 waiting 计划，共享 templateId + instanceId（统计按 instanceId 归组）
+    async instantiateTemplate(templateId) {
+      const t = this.templateById(templateId);
+      if (!t || !t.items.length) throw new Error('模板不存在或为空');
+      const instanceId = uuid();
+      const now = Date.now();
+      for (const it of t.items) {
+        await putRow('plans', {
+          id: uuid(),
+          title: it.title,
+          categoryId: 'cat-work',
+          goalId: null,
+          estimateMs: it.estimateMs || null,
+          note: '',
+          kind: 'planned',
+          status: 'waiting',
+          pauseReason: null,
+          endReason: null,
+          plannedDate: null,
+          templateId,
+          instanceId,
+          createdAt: now,
+        });
+      }
+      await this.load();
+      logInfo('plan', `从模板「${t.name}」创建 ${t.items.length} 个待执行计划`);
+      return { instanceId, count: t.items.length, name: t.name };
+    },
     async appendLog(planId, action, reason = null) {
       await appendPlanLog(planId, action, reason);
     },

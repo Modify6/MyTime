@@ -101,7 +101,8 @@ export async function setMeta(key, value) {
 // —— 计划系统 ——
 export const getPlans = () => db.plans.toArray();
 export const getPlanLogs = (planId) => db.planLogs.where('planId').equals(planId).toArray();
-export const getAllPlanLogs = () => db.planLogs.toArray(); // 复盘页按周期过滤用（个人量级全量可接受）
+export const getAllPlanLogs = () => db.planLogs.toArray();
+export const getTemplates = () => db.templates.toArray(); // items 为 JSON 字符串，读取方解析 // 复盘页按周期过滤用（个人量级全量可接受）
 export const getPlanEvents = (planId) =>
   db.events.where('planId').equals(planId).and((e) => !e.deleted).toArray();
 export const appendPlanLog = (planId, action, reason = null) =>

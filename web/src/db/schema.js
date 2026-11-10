@@ -4,11 +4,12 @@ import Dexie from 'dexie';
 export const db = new Dexie('mytime');
 
 db.version(1).stores({
-  categories: 'id, updatedAt, sort',
-  goals: 'id, updatedAt, archived',
-  events: 'id, updatedAt, startAt, endAt, categoryId, goalId',
+  // 索引字段 only（非索引数据自动存储）
+  events: 'id, categoryId, startAt, endAt, createdAt, updatedAt, deleted',
+  categories: 'id, name, updatedAt, deleted',
   outbox: '++seq, key',
   meta: 'key',
+  logs: '++id, at',
 });
 
 // v2：运行日志（环形缓冲，logger 负责裁剪）
@@ -21,6 +22,12 @@ db.version(3).stores({
   plans: 'id, updatedAt, status, kind',
   planLogs: 'id, planId, at',
   events: 'id, updatedAt, startAt, endAt, categoryId, goalId, planId',
+});
+
+// v4：事件组模板 + 计划的模板来源/实例分组（v0.14.0 模板实例化）
+db.version(4).stores({
+  plans: 'id, updatedAt, status, kind, templateId, instanceId',
+  templates: 'id, name, updatedAt, deleted',
 });
 
 // 临时调试钩子（E2E 排查用）

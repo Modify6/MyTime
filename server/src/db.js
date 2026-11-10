@@ -42,12 +42,18 @@ export function openDb(dataDir) {
       "id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "categoryId" TEXT NOT NULL, "goalId" TEXT,
       "estimateMs" INTEGER, "note" TEXT NOT NULL DEFAULT '', "kind" TEXT NOT NULL DEFAULT 'planned',
       "status" TEXT NOT NULL DEFAULT 'waiting', "pauseReason" TEXT, "endReason" TEXT,
-      "plannedDate" TEXT, "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "plannedDate" TEXT, "templateId" TEXT, "instanceId" TEXT,
+      "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS planLogs (
       "id" TEXT PRIMARY KEY, "planId" TEXT NOT NULL, "action" TEXT NOT NULL,
       "reason" TEXT, "at" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+      "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS templates (
+      "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "items" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events("startAt");
@@ -66,6 +72,25 @@ function migrateSchema(db) {
   }
   if (!cols.has('planId')) {
     db.exec('ALTER TABLE events ADD COLUMN "planId" TEXT');
+  }
+  const pcols = new Set(db.prepare('PRAGMA table_info(plans)').all().map((c) => c.name));
+  if (pcols.size && !pcols.has('templateId')) {
+    db.exec('ALTER TABLE plans ADD COLUMN "templateId" TEXT');
+  }
+  if (pcols.size && !pcols.has('instanceId')) {
+    db.exec('ALTER TABLE plans ADD COLUMN "instanceId" TEXT');
+  }
+  const t = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='templates'")
+    .get();
+  if (!t) {
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS templates (
+        "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "items" TEXT NOT NULL DEFAULT '[]',
+        "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
+        "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
+      )`
+    );
   }
 }
 
