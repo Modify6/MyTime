@@ -68,6 +68,11 @@ app.post('/api/sync', async (req) => {
 });
 
 // 服务端全量导出（备份用；客户端导入走同步接口）
+// 分类目录：客户端每次同步成功后对账（防本地目录丢失后无法自愈）
+app.get('/api/categories', async () => ({
+  categories: db.prepare('SELECT * FROM categories WHERE deleted = 0 ORDER BY sort, createdAt').all(),
+}));
+
 app.get('/api/export', async () => exportAll(db));
 
 // —— 服务端每日快照备份（客户端触发，保留最近 30 份） ——

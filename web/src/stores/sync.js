@@ -29,6 +29,7 @@ export const useSyncStore = defineStore('sync', {
           this.error = '';
           logInfo('sync', `同步成功 · ${getServerUrl() || '本机服务'}`);
           this.maybeAutoBackup();
+          this.reconcileCategories();
         } else if (type === 'error') {
           this.status = 'error';
           this.error = message;
@@ -52,6 +53,17 @@ export const useSyncStore = defineStore('sync', {
       await syncNow();
       if (this.status === 'error') logWarn('sync', `手动同步失败: ${this.error}`);
       return this.status !== 'error';
+    },
+    // 分类目录对账：拉服务端分类并 LWW 采纳——本地目录丢失/损坏时一次同步即自愈
+    // （曾发生：手机端目录丢失后游标已高过分类版本，增量拉取不再下发，全部显示"未分类"）
+    async reconcileCategories() {
+      try {
+        const res = await api.categories();
+        for (const row of res.categories || []) await adoptRow('categories', row);
+      } catch (e) {
+        logError('sync', `分类目录对账失败: ${String(e).split('
+')[0]}`);
+      }
     },
     // 自动每日备份：同步成功后检查，距上次快照超过 24 小时则让服务端做一次快照
     async maybeAutoBackup() {

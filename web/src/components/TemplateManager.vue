@@ -29,10 +29,7 @@ const expanded = ref(null); // 展开查看实例明细的模板 id
   async function loadImportEvents() {
     const d = new Date(importDate.value + 'T00:00:00');
     const start = d.getTime();
-    console.log('[导入调试] date=', importDate.value, 'start=', start, 'end=', start + 86400000);
-    const all = await getEventsBetween(start, start + 86400000);
-    console.log('[导入调试] 查询到', all.length, '条，其中未删除', all.filter((e) => !e.deleted).length, '条');
-    importEvents.value = all.filter((e) => !e.deleted);
+    importEvents.value = (await getEventsBetween(start, start + 86400000)).filter((e) => !e.deleted);
     importSel.value = new Set();
   }
   function toggleImport(id) {
