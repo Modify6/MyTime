@@ -1,8 +1,8 @@
 <script setup>
-// 统计页：日/周/月汇总、分类占比、Top 事项、柳比歇夫式报告、环比上期
+// 统计页：日/周/月/复盘 四分段；v0.14.0 视觉升级——色带/七柱/趋势/环形中心/堆叠对比
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { showToast } from 'vant';
-import { getEventsBetween, getCategories, getAllPlanLogs, getPlans, onChange } from '../db/repo.js';
+import { getEventsBetween, getCategories, getAllPlanLogs, getPlans, getAllEvents, onChange } from '../db/repo.js';
 import { rangeFor, shiftCursor, fmtDur } from '../lib/time.js';
 import {
   byCategory,
@@ -14,7 +14,6 @@ import {
   heatmapData,
 } from '../stats/aggregate.js';
 import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
-import { getAllEvents } from '../db/repo.js';
 import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
@@ -34,7 +33,6 @@ const categories = ref([]);
 const heatEvents = ref([]);
 const plans = ref([]);
 const planLogs = ref([]);
-const showReport = ref(false);
 
 // 复盘模式下数据范围跟随复盘粒度（周/月）
 const effPeriod = computed(() => (period.value === 'review' ? reviewGranularity.value : period.value));
@@ -105,18 +103,181 @@ function jumpToDay(key) {
   cursor.value = dayjs(key).startOf('day').valueOf();
 }
 
+// —— 复盘聚合（period === 'review'）——
+const review = computed(() => {
+  const args = {
+    events: events.value,
+    prevEvents: prevEvents.value,
+    plans: plans.value,
+    planLogs: planLogs.value,
+    start: range.value.start,
+    end: range.value.end,
+    prevStart: prevRange.value.start,
+    prevEnd: prevRange.value.end,
+  };
+  return {
+    planRows: buildReview(args),
+    catFlow: categoryFlow(args),
+    pauseTrend: pauseReasonTrend(args),
+  };
+});
+const flowMax = computed(() => Math.max(1, ...review.value.catFlow.map((f) => Math.max(f.nowMs, f.prevMs))));
+const pauseMax = computed(() => Math.max(1, ...review.value.pauseTrend.rows.map((r) => r.n)));
+const planRowMax = computed(() =>
+  Math.max(1, ...review.value.planRows.flatMap((r) => [r.est || 0, r.actMs]))
+);
+const STATUS_LABEL = { waiting: '等待中', active: '进行中', paused: '已挂起', done: '已完成', cancelled: '已取消' };
+function statusLabel(s) {
+  return STATUS_LABEL[s] || s;
+}
+
+// —— 视觉升级（v0.14.0）：色带 / 七柱 / 趋势 / 堆叠对比 ——
+
+// ① 单日分类色带：全天时间按分类着色铺满（泳道防重叠，细条堆叠；进行中事件画到当前时刻）
+const dayBand = computed(() => {
+  if (period.value !== 'day') return [];
+  const dayStart = range.value.start;
+  const dayEnd = range.value.end;
+  const now = Date.now();
+  const segs = events.value
+    .filter((e) => !e.deleted && e.startAt < dayEnd && (e.endAt ?? now) > dayStart)
+    .map((e) => ({ event: e, start: Math.max(e.startAt, dayStart), end: Math.min(e.endAt ?? now, dayEnd) }))
+    .sort((a, b) => a.start - b.start);
+  const lanes = [];
+  for (const s of segs) {
+    let lane = lanes.find((l) => s.start > l.end);
+    if (!lane) {
+      lane = { end: 0, items: [] };
+      lanes.push(lane);
+    }
+    lane.items.push(s);
+    lane.end = Math.max(lane.end, s.end);
+  }
+  return lanes.map((l) =>
+    l.items.map((s) => ({
+      id: s.event.id,
+      title: s.event.title,
+      left: ((s.start - dayStart) / 86_400_000) * 100,
+      width: Math.max(((s.end - s.start) / 86_400_000) * 100, 0.6),
+      color: catalog.catColor(s.event.categoryId),
+    }))
+  );
+});
+
+// ② 周视图七柱：7 天 × 分类堆叠柱（今天列高亮）
+const weekBarsOption = computed(() => {
+  if (period.value !== 'week') return null;
+  const days = Array.from({ length: 7 }, (_, i) => dayjs(range.value.start).add(i, 'day'));
+  const catIds = [...new Set(events.value.map((e) => e.categoryId).filter(Boolean))];
+  const todayIdx = days.findIndex((d) => d.isSame(dayjs(), 'day'));
+  const series = catIds.map((cid, si) => ({
+    name: catalog.catName(cid),
+    type: 'bar',
+    stack: 'total',
+    barWidth: 20,
+    itemStyle: { color: catalog.catColor(cid), borderRadius: si === catIds.length - 1 ? [4, 4, 0, 0] : 0 },
+    data: days.map((d) => {
+      let ms = 0;
+      for (const e of events.value) {
+        if (e.deleted || e.categoryId !== cid) continue;
+        if (dayjs(e.startAt).isSame(d, 'day')) ms += Math.max(0, (e.endAt ?? Date.now()) - e.startAt);
+      }
+      return Math.round(ms / 60000);
+    }),
+    ...(si === 0 && todayIdx >= 0
+      ? { markArea: { silent: true, itemStyle: { color: 'rgba(79,110,247,0.08)' }, data: [[{ xAxis: days[todayIdx].format('M/D') }, { xAxis: days[todayIdx].format('M/D') }]] } }
+      : {}),
+  }));
+  return {
+    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+    grid: { left: 6, right: 6, top: 18, bottom: 0, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: days.map((d) => d.format('M/D')),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#8884' } },
+      axisLabel: { fontSize: 10, color: '#98a2b3' },
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: '#8882' } },
+      axisLabel: { fontSize: 10, color: '#98a2b3', formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
+    },
+    series,
+  };
+});
+
+// ③ 近 30 天趋势：每日投入迷你面积图
+const trendOption = computed(() => {
+  const days = Array.from({ length: 30 }, (_, i) => dayjs().subtract(29 - i, 'day'));
+  const data = days.map((d) => {
+    let ms = 0;
+    for (const e of heatEvents.value) {
+      if (e.deleted) continue;
+      if (dayjs(e.startAt).isSame(d, 'day')) ms += Math.max(0, (e.endAt ?? Date.now()) - e.startAt);
+    }
+    return Math.round(ms / 60000);
+  });
+  return {
+    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+    grid: { left: 6, right: 6, top: 14, bottom: 0, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: days.map((d) => d.format('M/D')),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#8884' } },
+      axisLabel: { fontSize: 9, color: '#98a2b3', interval: 9 },
+    },
+    yAxis: { type: 'value', splitLine: { show: false }, axisLabel: { show: false } },
+    series: [
+      {
+        type: 'line',
+        smooth: true,
+        symbol: 'none',
+        data,
+        lineStyle: { color: '#4f6ef7', width: 2 },
+        areaStyle: { color: 'rgba(79,110,247,0.15)' },
+      },
+    ],
+  };
+});
+
+// ⑥ 复盘时间流向：两条全宽堆叠色条（本期 vs 上期，按分类着色）
+const flowStack = computed(() => {
+  const rows = review.value.catFlow.filter((f) => f.nowMs > 0 || f.prevMs > 0);
+  const seg = (key) => {
+    const tot = rows.reduce((s, f) => s + f[key], 0) || 1;
+    return rows.map((f) => ({ color: catalog.catColor(f.categoryId), name: catalog.catName(f.categoryId), pct: (f[key] / tot) * 100 }));
+  };
+  return {
+    now: seg('nowMs'),
+    prev: seg('prevMs'),
+    nowTotal: rows.reduce((s, f) => s + f.nowMs, 0),
+    prevTotal: rows.reduce((s, f) => s + f.prevMs, 0),
+  };
+});
+
 const pieOption = computed(() => ({
   tooltip: {
     trigger: 'item',
     valueFormatter: (v) => fmtDur(v * 60000),
   },
+  title: {
+    text: fmtDur(total.value),
+    subtext: '总投入',
+    left: 'center',
+    top: '40%',
+    textStyle: { fontSize: 17, fontWeight: 700, color: isDark.value ? '#e6e9f0' : '#1f2430' },
+    subtextStyle: { fontSize: 10, color: '#98a2b3' },
+  },
+  legend: { show: false },
   series: [
     {
       type: 'pie',
       radius: ['48%', '72%'],
       center: ['50%', '50%'],
       itemStyle: { borderColor: isDark.value ? '#171c26' : '#ffffff', borderWidth: 2, borderRadius: 4 },
-      label: { show: true, formatter: '{b}', fontSize: 11, color: isDark.value ? '#a3adbd' : '#6b7280' },
+      label: { show: false },
       data: catTotals.value.map((t) => ({
         name: categories.value.find((c) => c.id === t.categoryId)?.name || '未分类',
         value: Math.round(t.ms / 60000),
@@ -141,34 +302,6 @@ async function copyReport() {
 
 const prev = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, -1));
 const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1));
-
-// —— 复盘聚合（period === 'review'）——
-const review = computed(() => {
-  const args = {
-    events: events.value,
-    prevEvents: prevEvents.value,
-    plans: plans.value,
-    planLogs: planLogs.value,
-    start: range.value.start,
-    end: range.value.end,
-    prevStart: prevRange.value.start,
-    prevEnd: prevRange.value.end,
-  };
-  return {
-    planRows: buildReview(args),
-    catFlow: categoryFlow(args),
-    pauseTrend: pauseReasonTrend(args),
-  };
-});
-const flowMax = computed(() => Math.max(1, ...review.value.catFlow.map((f) => Math.max(f.nowMs, f.prevMs))));
-const pauseMax = computed(() => Math.max(1, ...review.value.pauseTrend.rows.map((r) => r.n)));
-const STATUS_LABEL = { waiting: '等待中', active: '进行中', paused: '已挂起', done: '已完成', cancelled: '已取消' };
-function statusLabel(s) {
-  return STATUS_LABEL[s] || s;
-}
-const planRowMax = computed(() =>
-  Math.max(1, ...review.value.planRows.flatMap((r) => [r.est || 0, r.actMs]))
-);
 </script>
 
 <template>
@@ -200,23 +333,64 @@ const planRowMax = computed(() =>
     <div class="card">
       <div class="stat-grid">
         <div class="cell">
+          <van-icon class="cell-icon" name="clock-o" />
           <div class="num">{{ fmtDur(total) }}</div>
           <div class="lab">合计纯时间</div>
         </div>
         <div class="cell">
+          <van-icon class="cell-icon" name="orders-o" />
           <div class="num">{{ events.length }}</div>
           <div class="lab">记录条数</div>
         </div>
         <div class="cell">
+          <van-icon class="cell-icon" name="upgrade" />
           <div class="num" :style="{ color: delta == null ? 'inherit' : delta > 0 ? '#f5a623' : '#34c273' }">
-            {{ delta == null ? '—' : (delta > 0 ? '+' : '') + delta + '%' }}
+            {{ delta == null ? '—' : (delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '') + delta + '%' }}
           </div>
           <div class="lab">较上期</div>
         </div>
       </div>
     </div>
 
-    <!-- 复盘模式：计划 vs 实际 + 时间流向 + 挂起原因 -->
+    <!-- 单日分类色带：全天时间按分类着色 -->
+    <div class="card" v-if="period === 'day' && dayBand.length">
+      <div class="section-title" style="margin-top: 0">
+        <span>时间分布</span>
+        <span class="muted">0 — 24 时</span>
+      </div>
+      <div class="band">
+        <div class="band-lane" v-for="(lane, li) in dayBand" :key="li">
+          <div
+            v-for="b in lane"
+            :key="b.id"
+            class="band-seg"
+            :style="{ left: b.left + '%', width: b.width + '%', background: b.color }"
+            :title="b.title"
+          ></div>
+        </div>
+      </div>
+      <div class="band-ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+    </div>
+
+    <!-- 周视图七柱：7 天分类堆叠，今天高亮 -->
+    <div class="card" v-if="period === 'week' && weekBarsOption">
+      <div class="section-title" style="margin-top: 0">
+        <span>每日投入</span>
+        <span class="muted">按分类堆叠 · 高亮列 = 今天</span>
+      </div>
+      <EChart :option="weekBarsOption" height="200px" />
+    </div>
+
+    <!-- 近 30 天趋势 -->
+    <div class="card" v-if="period !== 'review'">
+      <div class="section-title" style="margin-top: 0">
+        <span>近 30 天趋势</span>
+        <span class="muted">每日投入</span>
+      </div>
+      <EChart :option="trendOption" height="120px" />
+    </div>
+
+    <!-- 复盘模式：计划 vs 实际 + 时间流向堆叠 + 挂起原因 -->
     <template v-if="period === 'review'">
       <div class="card">
         <div class="section-title" style="margin-top: 0">
@@ -255,9 +429,19 @@ const planRowMax = computed(() =>
       <div class="card">
         <div class="section-title" style="margin-top: 0">
           <span>时间流向</span>
-          <span class="muted">本期 vs 上期</span>
+          <span class="muted">本期 vs 上期 · 按分类</span>
         </div>
         <div v-if="review.catFlow.length">
+          <div class="flow-stack" v-if="flowStack.nowTotal || flowStack.prevTotal">
+            <div class="fs-label"><span>本期</span><b>{{ fmtDur(flowStack.nowTotal) }}</b></div>
+            <div class="fs-bar">
+              <div v-for="(sg, i) in flowStack.now" :key="'n' + i" :style="{ width: sg.pct + '%', background: sg.color }" :title="sg.name"></div>
+            </div>
+            <div class="fs-label"><span>上期</span><b>{{ fmtDur(flowStack.prevTotal) }}</b></div>
+            <div class="fs-bar">
+              <div v-for="(sg, i) in flowStack.prev" :key="'p' + i" :style="{ width: sg.pct + '%', background: sg.color, opacity: 0.45 }" :title="sg.name"></div>
+            </div>
+          </div>
           <div class="pa-row" v-for="f in review.catFlow" :key="f.categoryId">
             <span class="name">{{ catalog.catName(f.categoryId) }}</span>
             <div class="pa-bars">
@@ -329,63 +513,178 @@ const planRowMax = computed(() =>
       </div>
 
       <div v-if="planActual" class="card">
-      <div class="section-title" style="margin-top: 0">
-        <span>计划 vs 实际</span>
-        <span class="muted">{{ planActual.count }} 条有预估</span>
-      </div>
-      <div class="pa-summary">
-        预估 {{ fmtDur(planActual.estMs) }} · 实际 {{ fmtDur(planActual.actMs) }}
-        <b :style="{ color: planActual.pct > 0 ? '#f5a623' : '#34c273' }">
-          （{{ planActual.pct > 0 ? '+' : '' }}{{ planActual.pct }}%）
-        </b>
-      </div>
-      <div class="muted" style="margin: 2px 0 8px">偏差为实际相对预估：正 = 超出预估，负 = 快于预估</div>
-      <div class="pa-row" v-for="r in planByCat" :key="r.categoryId">
-        <span class="name">{{ catalog.catName(r.categoryId) }}</span>
-        <div class="pa-bars">
-          <div class="track">
-            <div class="fill est" :style="{ width: (r.estMs / planMax) * 100 + '%' }"></div>
+        <div class="section-title" style="margin-top: 0">
+          <span>计划 vs 实际</span>
+          <span class="muted">{{ planActual.count }} 条有预估</span>
+        </div>
+        <div class="pa-summary">
+          预估 {{ fmtDur(planActual.estMs) }} · 实际 {{ fmtDur(planActual.actMs) }}
+          <b :style="{ color: planActual.pct > 0 ? '#f5a623' : '#34c273' }">
+            （{{ planActual.pct > 0 ? '+' : '' }}{{ planActual.pct }}%）
+          </b>
+        </div>
+        <div class="muted" style="margin: 2px 0 8px">偏差为实际相对预估：正 = 超出预估，负 = 快于预估</div>
+        <div class="pa-row" v-for="r in planByCat" :key="r.categoryId">
+          <span class="name">{{ catalog.catName(r.categoryId) }}</span>
+          <div class="pa-bars">
+            <div class="track">
+              <div class="fill est" :style="{ width: (r.estMs / planMax) * 100 + '%' }"></div>
+            </div>
+            <div class="track">
+              <div class="fill act" :style="{ width: (r.actMs / planMax) * 100 + '%', '--c': catalog.catColor(r.categoryId) }"></div>
+            </div>
           </div>
-          <div class="track">
-            <div class="fill act" :style="{ width: (r.actMs / planMax) * 100 + '%', '--c': catalog.catColor(r.categoryId) }"></div>
+          <span class="val">{{ fmtDur(r.actMs) }}</span>
+        </div>
+        <div class="pa-legend">
+          <span><i class="swatch" style="background: var(--est-bar)"></i>预估</span>
+          <span><i class="swatch" style="background: var(--brand)"></i>实际</span>
+        </div>
+      </div>
+
+      <div v-if="catTotals.length" class="card">
+        <div class="section-title" style="margin-top: 0">分类占比</div>
+        <EChart :option="pieOption" height="220px" />
+        <div class="donut-legend">
+          <div class="dl-row" v-for="t in catTotals" :key="t.categoryId">
+            <i class="dl-dot" :style="{ background: catalog.catColor(t.categoryId) }"></i>
+            <span class="dl-name">{{ catalog.catName(t.categoryId) }}</span>
+            <span class="dl-pct">{{ total ? Math.round((t.ms / total) * 100) : 0 }}%</span>
+            <span class="dl-val">{{ fmtDur(t.ms) }}</span>
           </div>
         </div>
-        <span class="val">{{ fmtDur(r.actMs) }}</span>
       </div>
-      <div class="pa-legend">
-        <span><i class="swatch" style="background: var(--est-bar)"></i>预估</span>
-        <span><i class="swatch" style="background: var(--brand)"></i>实际</span>
-      </div>
-    </div>
 
-    <div v-if="catTotals.length" class="card">
-      <div class="section-title" style="margin-top: 0">分类占比</div>
-      <EChart :option="pieOption" height="240px" />
-    </div>
-
-    <div v-if="topItems.length" class="card">
-      <div class="section-title" style="margin-top: 0">Top 事项</div>
-      <div class="bar-row" v-for="(t, i) in topItems" :key="i">
-        <span class="name">{{ t.title }}</span>
-        <div class="track">
-          <div class="fill" :style="{ width: (t.ms / topItems[0].ms) * 100 + '%' }"></div>
+      <div v-if="topItems.length" class="card">
+        <div class="section-title" style="margin-top: 0">Top 事项</div>
+        <div class="bar-row" v-for="(t, i) in topItems" :key="i">
+          <span class="name">{{ t.title }}</span>
+          <div class="track">
+            <div class="fill" :style="{ width: (t.ms / topItems[0].ms) * 100 + '%' }"></div>
+          </div>
+          <span class="val">{{ fmtDur(t.ms) }} · {{ t.count }}次</span>
         </div>
-        <span class="val">{{ fmtDur(t.ms) }} · {{ t.count }}次</span>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="section-title" style="margin-top: 0">
-        <span>柳比歇夫报告</span>
-        <van-button size="small" plain round icon="records" @click="copyReport">复制</van-button>
+      <div class="card">
+        <div class="section-title" style="margin-top: 0">
+          <span>柳比歇夫报告</span>
+          <van-button size="small" plain round icon="records" @click="copyReport">复制</van-button>
+        </div>
+        <pre class="report-pre">{{ report }}</pre>
       </div>
-      <pre class="report-pre">{{ report }}</pre>
-    </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+.stats-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-mid {
+  flex: 1;
+}
+.cell-icon {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 16px;
+  color: var(--text-3);
+  opacity: 0.6;
+}
+.stat-grid .cell {
+  position: relative;
+}
+.stat-grid .cell .num {
+  font-size: 17px;
+  white-space: nowrap;
+}
+.band {
+  background: var(--card-2);
+  border-radius: 8px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.band-lane {
+  position: relative;
+  height: 12px;
+}
+.band-seg {
+  position: absolute;
+  top: 0;
+  height: 12px;
+  border-radius: 3px;
+}
+.band-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.donut-legend {
+  margin-top: 4px;
+}
+.dl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dl-row:last-child {
+  border-bottom: 0;
+}
+.dl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.dl-name {
+  flex: 1;
+  color: var(--text-2);
+}
+.dl-pct {
+  width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.dl-val {
+  width: 70px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.flow-stack {
+  margin-bottom: 10px;
+}
+.fs-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 4px 0 3px;
+}
+.fs-label b {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.fs-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--track);
+}
+.fs-bar div {
+  height: 100%;
+}
 .rv-gran {
   display: flex;
   justify-content: center;
@@ -439,9 +738,7 @@ const planRowMax = computed(() =>
 .rv-status.st-paused {
   color: #f5a623;
 }
-.rv-status.st-waiting {
-  color: var(--text-3);
-}
+.rv-status.st-waiting,
 .rv-status.st-cancelled {
   color: var(--text-3);
 }
@@ -452,14 +749,6 @@ const planRowMax = computed(() =>
 }
 .pa-bars .fill.prev {
   background: #98a2b3;
-}
-.stats-nav {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.nav-mid {
-  flex: 1;
 }
 .pa-summary {
   font-size: 14px;
@@ -505,7 +794,7 @@ const planRowMax = computed(() =>
   background: var(--c, var(--brand));
 }
 .pa-row .val {
-  width: 70px;
+  width: 88px;
   flex: none;
   font-size: 11px;
   color: var(--text-2);
@@ -528,28 +817,29 @@ const planRowMax = computed(() =>
 .heat {
   display: flex;
   gap: 4px;
-  overflow-x: auto;
+  align-items: stretch;
 }
 .heat-labels {
   display: grid;
-  grid-template-rows: repeat(7, 12px);
+  grid-template-rows: repeat(7, 1fr);
   gap: 2px;
   font-size: 9px;
-  line-height: 12px;
   color: var(--text-3);
   flex: none;
-  width: 12px;
+  width: 14px;
 }
 .heat-grid {
+  flex: 1;
   display: grid;
-  grid-template-rows: repeat(7, 12px);
+  grid-template-rows: repeat(7, 1fr);
   grid-auto-flow: column;
-  grid-auto-columns: 12px;
+  grid-auto-columns: 1fr;
   gap: 2px;
+  aspect-ratio: 24 / 7;
 }
 .heat-cell {
-  width: 12px;
-  height: 12px;
+  width: 100%;
+  height: 100%;
   border-radius: 2px;
   border: 0;
   padding: 0;
