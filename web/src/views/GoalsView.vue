@@ -1,10 +1,12 @@
 <script setup>
 // 目标页：把相关事件聚合成"大事"，给出累计投入与平均单次 —— 做成另一件大事的时间参照
+// 周期目标（每周/每月）按当前周期口径统计投入
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAllEvents, onChange } from '../db/repo.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import { totalMs, fmtDur } from '../stats/aggregate.js';
+import { rangeFor } from '../lib/time.js';
 import GoalForm from '../components/GoalForm.vue';
 import SyncDot from '../components/SyncDot.vue';
 
@@ -24,13 +26,19 @@ onMounted(async () => {
 });
 onUnmounted(() => un?.());
 
+const KIND_LABEL = { weekly: '本周', monthly: '本月' };
 const goalStats = computed(() =>
   catalog.activeGoals
     .map((g) => {
-      const list = allEvents.value.filter((e) => e.goalId === g.id);
+      const kind = g.targetType || 'total';
+      let list = allEvents.value.filter((e) => e.goalId === g.id);
+      if (kind === 'weekly' || kind === 'monthly') {
+        const r = rangeFor(kind === 'weekly' ? 'week' : 'month', Date.now());
+        list = list.filter((e) => e.startAt < r.end && (e.endAt ?? e.startAt) >= r.start);
+      }
       const ms = totalMs(list);
       const count = list.length;
-      return { goal: g, ms, count, avg: count ? Math.round(ms / count) : 0 };
+      return { goal: g, kind, kindLabel: KIND_LABEL[kind] || '', ms, count, avg: count ? Math.round(ms / count) : 0 };
     })
     .sort((a, b) => b.ms - a.ms)
 );
@@ -65,10 +73,10 @@ function add() {
       <div v-for="s in goalStats" :key="s.goal.id" class="card goal-card" @click="openDetail(s.goal)">
         <div class="goal-head">
           <span class="chip" :style="{ '--c': s.goal.color }"><i class="dot"></i>{{ s.goal.name }}</span>
-          <span v-if="s.goal.targetHours" class="muted">目标 {{ s.goal.targetHours }} 小时</span>
+          <span v-if="s.goal.targetHours" class="muted">{{ s.kindLabel }}目标 {{ s.goal.targetHours }} 小时</span>
         </div>
         <div class="goal-nums">
-          <div class="cell"><div class="num">{{ fmtDur(s.ms) }}</div><div class="lab">累计投入</div></div>
+          <div class="cell"><div class="num">{{ fmtDur(s.ms) }}</div><div class="lab">{{ s.kindLabel ? s.kindLabel + '投入' : '累计投入' }}</div></div>
           <div class="cell"><div class="num">{{ s.count }}</div><div class="lab">次数</div></div>
           <div class="cell"><div class="num">{{ fmtDur(s.avg) }}</div><div class="lab">平均单次</div></div>
         </div>

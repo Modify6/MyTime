@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 
 export const TABLES = {
   categories: ['id', 'name', 'color', 'sort', 'createdAt', 'updatedAt', 'deleted'],
-  goals: ['id', 'name', 'description', 'color', 'targetHours', 'archived', 'createdAt', 'updatedAt', 'deleted'],
+  goals: ['id', 'name', 'description', 'color', 'targetType', 'targetHours', 'archived', 'createdAt', 'updatedAt', 'deleted'],
   events: ['id', 'title', 'categoryId', 'goalId', 'planId', 'startAt', 'endAt', 'note', 'estimateMs', 'createdAt', 'updatedAt', 'deleted'],
   plans: ['id', 'title', 'categoryId', 'goalId', 'estimateMs', 'note', 'kind', 'status', 'pauseReason', 'endReason', 'plannedDate', 'createdAt', 'updatedAt', 'deleted'],
   planLogs: ['id', 'planId', 'action', 'reason', 'at', 'updatedAt', 'deleted'],
@@ -28,7 +28,7 @@ export function openDb(dataDir) {
     );
     CREATE TABLE IF NOT EXISTS goals (
       "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "description" TEXT NOT NULL DEFAULT '',
-      "color" TEXT NOT NULL DEFAULT '#4F6EF7', "targetHours" REAL, "archived" INTEGER NOT NULL DEFAULT 0,
+      "color" TEXT NOT NULL DEFAULT '#4F6EF7', "targetType" TEXT, "targetHours" REAL, "archived" INTEGER NOT NULL DEFAULT 0,
       "createdAt" INTEGER NOT NULL, "updatedAt" INTEGER NOT NULL,
       "deleted" INTEGER NOT NULL DEFAULT 0, "serverRev" INTEGER NOT NULL DEFAULT 0
     );
@@ -79,6 +79,10 @@ function migrateSchema(db) {
   }
   if (pcols.size && !pcols.has('instanceId')) {
     db.exec('ALTER TABLE plans ADD COLUMN "instanceId" TEXT');
+  }
+  const gcols = new Set(db.prepare('PRAGMA table_info(goals)').all().map((c) => c.name));
+  if (gcols.size && !gcols.has('targetType')) {
+    db.exec('ALTER TABLE goals ADD COLUMN "targetType" TEXT');
   }
   const t = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='templates'")

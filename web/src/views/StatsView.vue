@@ -14,6 +14,7 @@ import {
   heatmapData,
 } from '../stats/aggregate.js';
 import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
+import { goalProgress, GOAL_KIND_LABEL } from '../stats/goals.js';
 import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
@@ -132,6 +133,25 @@ function statusLabel(s) {
 }
 
 // —— 视觉升级（v0.14.0）：色带 / 七柱 / 趋势 / 堆叠对比 ——
+
+// 目标进度（五模式统一卡片）：日模式显示本周+本月，周/月/复盘跟随所在周期
+// 数据源用全量事件（heatEvents），保证日模式下也能算出整周/整月口径
+const weekRange = computed(() => rangeFor('week', cursor.value));
+const monthRange = computed(() => rangeFor('month', cursor.value));
+const goalCards = computed(() => {
+  const evs = heatEvents.value;
+  const goals = catalog.goals;
+  const weekly = goalProgress(goals, evs, { kind: 'weekly', start: weekRange.value.start, end: weekRange.value.end });
+  const monthly = goalProgress(goals, evs, { kind: 'monthly', start: monthRange.value.start, end: monthRange.value.end });
+  const withLabel = (rows, label) => rows.map((r) => ({ ...r, label }));
+  if (period.value === 'week') return withLabel(weekly, GOAL_KIND_LABEL.weekly);
+  if (period.value === 'month') return withLabel(monthly, GOAL_KIND_LABEL.monthly);
+  if (period.value === 'review') {
+    return reviewGranularity.value === 'week' ? withLabel(weekly, GOAL_KIND_LABEL.weekly) : withLabel(monthly, GOAL_KIND_LABEL.monthly);
+  }
+  return [...withLabel(weekly, GOAL_KIND_LABEL.weekly), ...withLabel(monthly, GOAL_KIND_LABEL.monthly)];
+});
+
 
 // ① 单日分类色带：全天时间按分类着色铺满（泳道防重叠，细条堆叠；进行中事件画到当前时刻）
 const dayBand = computed(() => {
@@ -348,6 +368,35 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
             {{ delta == null ? '—' : (delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '') + delta + '%' }}
           </div>
           <div class="lab">较上期</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 目标进度：每周/每月目标的投入对照 -->
+    <div class="card" v-if="goalCards.length">
+      <div class="section-title" style="margin-top: 0">目标进度</div>
+      <div class="gp-row" v-for="r in goalCards" :key="r.goal.id">
+        <div class="gp-head">
+          <span class="gp-name">
+            <span class="gp-kind">{{ r.label }}</span>
+            <i class="gp-dot" :style="{ background: r.goal.color }"></i>{{ r.goal.name }}
+          </span>
+          <span class="gp-val" :class="{ done: r.done }">
+            {{ fmtDur(r.ms) }} / {{ r.goal.targetHours }}h
+          </span>
+        </div>
+        <div class="gp-track">
+          <div class="gp-fill" :class="{ done: r.done, behind: r.behind }" :style="{ width: Math.min(100, r.pct) + '%' }"></div>
+        </div>
+        <div class="gp-sub">
+          <span :class="{ done: r.done }">{{ r.pct }}%</span>
+          <span v-if="r.done" class="gp-done">已达成</span>
+          <template v-else-if="r.elapsedPct != null">
+            <span class="muted">时间已过 {{ r.elapsedPct }}%</span>
+            <span v-if="r.behind" class="gp-behind">节奏落后 · 还差 {{ fmtDur(r.remainMs) }}</span>
+            <span v-else class="muted">还差 {{ fmtDur(r.remainMs) }}</span>
+          </template>
+          <span v-else class="muted">还差 {{ fmtDur(r.remainMs) }}</span>
         </div>
       </div>
     </div>
@@ -625,6 +674,91 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
   font-size: 10px;
   color: var(--text-3);
   margin-top: 4px;
+}
+.gp-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.gp-row:last-child {
+  border-bottom: 0;
+}
+.gp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.gp-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gp-kind {
+  flex: none;
+  font-size: 10px;
+  color: var(--brand);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+.gp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.gp-val {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.gp-val.done {
+  color: #34c273;
+  font-weight: 600;
+}
+.gp-track {
+  margin-top: 7px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+.gp-fill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+  transition: width 0.3s;
+}
+.gp-fill.done {
+  background: #34c273;
+}
+.gp-fill.behind {
+  background: #f5a623;
+}
+.gp-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--text-2);
+}
+.gp-sub .done {
+  color: #34c273;
+  font-weight: 600;
+}
+.gp-done {
+  color: #34c273;
+}
+.gp-behind {
+  color: #f5a623;
 }
 .donut-legend {
   margin-top: 4px;

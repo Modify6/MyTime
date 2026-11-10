@@ -1,6 +1,6 @@
 <script setup>
 // 目标（大事）表单：名称、目标时长、颜色、说明
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { showToast } from 'vant';
 import { useCatalogStore } from '../stores/catalog.js';
 import { bindBackClose } from '../lib/native.js';
@@ -22,17 +22,24 @@ watch(
   (v) => {
     if (!v) return;
     form.value = props.goal
-      ? { ...props.goal }
-      : { id: uuid(), name: '', description: '', color: PALETTE[0], targetHours: null, archived: 0, createdAt: Date.now() };
+      ? { targetType: 'total', ...props.goal }
+      : { id: uuid(), name: '', description: '', color: PALETTE[0], targetType: 'total', targetHours: null, archived: 0, createdAt: Date.now() };
   }
 );
+
+const KINDS = [
+  { v: 'total', label: '累计', hint: '目标投入总时长（小时，选填）' },
+  { v: 'weekly', label: '每周', hint: '每周投入小时数（如 10）' },
+  { v: 'monthly', label: '每月', hint: '每月投入小时数（如 40）' },
+];
+const kindHint = computed(() => KINDS.find((k) => k.v === (form.value.targetType || 'total'))?.hint || '');
 
 async function save() {
   const f = form.value;
   if (!(f.name || '').trim()) return showToast('请填写目标名称');
   const target = f.targetHours === '' || f.targetHours == null ? null : Number(f.targetHours);
   if (target != null && (!Number.isFinite(target) || target <= 0)) return showToast('目标时长需为正数');
-  await catalog.saveGoal({ ...f, name: f.name.trim(), targetHours: target });
+  await catalog.saveGoal({ ...f, name: f.name.trim(), targetHours: target, targetType: f.targetType || 'total' });
   showToast('已保存');
   emit('update:show', false);
   emit('saved');
@@ -50,7 +57,18 @@ async function save() {
     <div class="sheet">
       <div class="sheet-title">{{ goal ? '编辑目标' : '新建目标' }}</div>
       <van-field v-model="form.name" placeholder="目标名称（如：读完《奇特的一生》）" clearable />
-      <van-field v-model="form.targetHours" type="number" placeholder="目标投入时长（小时，选填）" />
+      <div class="field-label">周期</div>
+      <div class="kind-row">
+        <button
+          v-for="k in KINDS"
+          :key="k.v"
+          type="button"
+          class="kind-chip"
+          :class="{ active: (form.targetType || 'total') === k.v }"
+          @click="form.targetType = k.v"
+        >{{ k.label }}</button>
+      </div>
+      <van-field v-model="form.targetHours" type="number" :placeholder="kindHint" />
       <van-field v-model="form.description" type="textarea" rows="2" autosize placeholder="说明（为什么想做这件事）" />
 
       <div class="field-label">颜色</div>
@@ -83,6 +101,26 @@ async function save() {
   font-size: 12px;
   color: var(--text-3);
   margin: 14px 2px 8px;
+}
+.kind-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 2px;
+}
+.kind-chip {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.kind-chip.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 600;
+  background: var(--card-3);
 }
 .palette {
   display: flex;
