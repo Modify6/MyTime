@@ -78,7 +78,7 @@ export async function adoptRow(table, row, { push = false } = {}) {
 }
 
 // —— 查询辅助（个人量级，内存过滤足够） ——
-export const getCategories = () => db.categories.toArray();
+export const getCategories = () => db.categories.filter((c) => !c.deleted).toArray();
 export const getGoals = () => db.goals.toArray();
 
 // 事件归属其 startAt 所在时段
@@ -102,10 +102,10 @@ export async function setMeta(key, value) {
 }
 
 // —— 计划系统 ——
-export const getPlans = () => db.plans.toArray();
+export const getPlans = () => db.plans.filter((p) => !p.deleted).toArray();
 export const getPlanLogs = (planId) => db.planLogs.where('planId').equals(planId).toArray();
 export const getAllPlanLogs = () => db.planLogs.toArray();
-export const getTemplates = () => db.templates.toArray(); // items 为 JSON 字符串，读取方解析 // 复盘页按周期过滤用（个人量级全量可接受）
+export const getTemplates = () => db.templates.filter((t) => !t.deleted).toArray(); // items 为 JSON 字符串，读取方解析 // 复盘页按周期过滤用（个人量级全量可接受）
 export const getPlanEvents = (planId) =>
   db.events.where('planId').equals(planId).and((e) => !e.deleted).toArray();
 export const appendPlanLog = (planId, action, reason = null) =>
