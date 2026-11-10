@@ -69,10 +69,13 @@ try {
   // web/package.json 与 app/android/app/build.gradle 由本脚本/sync-version 自动管理，
   // 它们的未提交改动不视为"代码变化"（防无限递增）
   const AUTO_MANAGED = ['web/package.json', 'app/android/app/build.gradle'];
+  // 文档类改动不改变 APK 内容，不计入版本递增
+  const DOCS = ['README.md', 'CHANGELOG.md', 'docs/'];
   const st = spawnSync('git', ['status', '--porcelain', '-uno'], { cwd: ROOT, encoding: 'utf8' });
   dirtyOthers = st.stdout
     .split('\n')
-    .filter((l) => l.trim() && !AUTO_MANAGED.some((f) => l.includes(f))).length > 0;
+    .filter((l) => l.trim() && !AUTO_MANAGED.some((f) => l.includes(f)) && !DOCS.some((f) => l.includes(f)))
+    .length > 0;
 } catch {}
 const stateFile = path.join(ROOT, '.apk-build-state.json');
 const last = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : null;
