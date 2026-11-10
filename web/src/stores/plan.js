@@ -73,6 +73,19 @@ export const usePlanStore = defineStore('plan', {
       logInfo('plan', `新建${kind === 'planned' ? '预排' : '临时'}计划「${plan.title}」`);
       return plan;
     },
+    async removeGroup(instanceId) {
+      // 删除同一模板实例的整组计划（软删；已记录的时间数据不受影响）
+      let n = 0;
+      for (const p of this.plans) {
+        if (p.instanceId === instanceId && !p.deleted) {
+          await softDelete('plans', p.id);
+          n++;
+        }
+      }
+      await this.load();
+      logInfo('plan', `删除整组计划（${n} 个，instanceId ${instanceId.slice(0, 8)}）`);
+      return n;
+    },
     async remove(id) {
       await softDelete('plans', id);
       logInfo('plan', '删除计划');

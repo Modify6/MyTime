@@ -20,6 +20,10 @@ const timer = useTimerStore();
 const catalog = useCatalogStore();
 
 const planTab = ref('plans'); // plans | templates
+const delActions = computed(() => [
+  { name: '仅删除此条（时间数据保留）', whole: false },
+  { name: `删除整组（${delSheet.value.groupSize} 个，时间数据保留）`, whole: true, color: '#e5484d' },
+]);
 const showForm = ref(false);
 const editingPlan = ref(null);
 const handoffPlan = ref(null);
@@ -123,17 +127,36 @@ async function finishPlan(p, status, reason) {
     showToast(e.message || '操作失败');
   }
 }
+const delSheet = ref({ show: false, plan: null, groupSize: 1 });
 async function removePlan(p) {
+  const groupSize = p.instanceId
+    ? planStore.plans.filter((x) => x.instanceId === p.instanceId && !x.deleted).length
+    : 1;
+  if (groupSize > 1) {
+    delSheet.value = { show: true, plan: p, groupSize };
+    return;
+  }
+  await confirmRemove(p, false);
+}
+async function confirmRemove(p, wholeGroup) {
   try {
     await showConfirmDialog({
-      title: '删除该计划？',
-      message: '仅删除这条计划记录，已记录的时间数据会保留。',
+      title: wholeGroup ? '删除整组计划？' : '删除该计划？',
+      message: wholeGroup
+        ? `将删除整组 ${delSheet.value.groupSize} 个计划，已记录的时间数据会保留。`
+        : '仅删除这条计划记录，已记录的时间数据会保留。',
     });
   } catch {
     return;
   }
-  await planStore.remove(p.id);
+  if (wholeGroup) await planStore.removeGroup(delSheet.value.plan.instanceId);
+  else await planStore.remove(p.id);
   showToast('已删除（时间数据保留）');
+}
+function onDelSelect(action) {
+  const plan = delSheet.value.plan;
+  if (!plan) return;
+  confirmRemove(plan, action.whole === true);
 }
 
 function openDetail(p) {
@@ -260,6 +283,14 @@ function openDetail(p) {
       </div>
     </template>
 
+    <van-action-sheet
+      :show="delSheet.show"
+      :actions="delActions"
+      cancel-text="取消"
+      close-on-click-action
+      @select="onDelSelect"
+      @update:show="delSheet.show = false"
+    />
     <PlanForm v-model:show="showForm" :plan="editingPlan" />
     <HandoffDialog v-model:show="showHandoff" :new-plan="handoffPlan" @confirm="onHandoffConfirm" />
     <PauseReasonDialog v-model:show="showPauseDialog" @confirm="onPauseConfirm" />
