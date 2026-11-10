@@ -36,6 +36,7 @@ export const api = {
   // —— 服务端快照备份 ——
   serverBackup: () => request('POST', '/api/backup', {}), // 空 body 会被 Fastify 以 400 拒绝（Content-Type 为 JSON 时）
   categories: () => request('GET', '/api/categories'),
+  goals: () => request('GET', '/api/goals'),
   backupList: () => request('GET', '/api/backup/list'),
   // 下载指定快照（返回 Blob，由调用方触发保存）
   backupDownload: async (name) => {

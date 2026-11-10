@@ -29,7 +29,7 @@ export const useSyncStore = defineStore('sync', {
           this.error = '';
           logInfo('sync', `同步成功 · ${getServerUrl() || '本机服务'}`);
           this.maybeAutoBackup();
-          this.reconcileCategories();
+          this.reconcileReference();
         } else if (type === 'error') {
           this.status = 'error';
           this.error = message;

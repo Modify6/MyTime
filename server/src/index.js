@@ -73,6 +73,11 @@ app.get('/api/categories', async () => ({
   categories: db.prepare('SELECT * FROM categories WHERE deleted = 0 ORDER BY sort, createdAt').all(),
 }));
 
+// 目标数据：客户端同步成功后对账（同分类目录，防本地丢失无法自愈）
+app.get('/api/goals', async () => ({
+  goals: db.prepare('SELECT * FROM goals WHERE deleted = 0').all(),
+}));
+
 app.get('/api/export', async () => exportAll(db));
 
 // —— 服务端每日快照备份（客户端触发，保留最近 30 份） ——
