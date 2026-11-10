@@ -45,3 +45,7 @@ deploy/config
 .debug-state.json
 MyTime-v*.apk
 .apk-build-state.json
+
+# 调试临时脚本与错误栈
+.tmp-*.mjs
+.err-stack.*
