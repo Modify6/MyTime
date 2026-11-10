@@ -25,7 +25,10 @@ function bump() {
     scheduled = false;
     for (const fn of [...listeners]) {
       try {
-        fn();
+        // listener 可能是 async（如 store.load）——同步 try/catch 接不住 await 后
+        // 的 rejection（会逃逸成 unhandled rejection 干扰全局），统一转 Promise 捕获
+        const r = fn();
+        if (r && typeof r.catch === 'function') r.catch((e) => console.error(e));
       } catch (e) {
         console.error(e);
       }

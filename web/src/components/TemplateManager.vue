@@ -4,8 +4,9 @@ import { computed, onMounted, ref } from 'vue';
 import { showToast, showConfirmDialog } from 'vant';
 import { usePlanStore } from '../stores/plan.js';
 import { templateStats } from '../stats/template.js';
-import { getAllEvents } from '../db/repo.js';
+import { getAllEvents, getEventsBetween } from '../db/repo.js';
 import { fmtDur } from '../lib/time.js';
+import dayjs from 'dayjs';
 
 const emit = defineEmits(['instantiated']);
 const planStore = usePlanStore();
@@ -15,6 +16,40 @@ const editing = ref(null);
 const formName = ref('');
 const formItems = ref([{ title: '', estimateMin: '' }]);
 const expanded = ref(null); // 展开查看实例明细的模板 id
+  // —— 从记录导入：选某天的真实记录勾选为子任务 ——
+  const showImport = ref(false);
+  const importDate = ref(dayjs().subtract(1, 'day').format('YYYY-MM-DD')); // 默认昨天（本地时区）
+  const importEvents = ref([]);
+  const importSel = ref(new Set());
+  async function openImport() {
+    importSel.value = new Set();
+    showImport.value = true;
+    await loadImportEvents();
+  }
+  async function loadImportEvents() {
+    const d = new Date(importDate.value + 'T00:00:00');
+    const start = d.getTime();
+    console.log('[导入调试] date=', importDate.value, 'start=', start, 'end=', start + 86400000);
+    const all = await getEventsBetween(start, start + 86400000);
+    console.log('[导入调试] 查询到', all.length, '条，其中未删除', all.filter((e) => !e.deleted).length, '条');
+    importEvents.value = all.filter((e) => !e.deleted);
+    importSel.value = new Set();
+  }
+  function toggleImport(id) {
+    const next = new Set(importSel.value);
+    next.has(id) ? next.delete(id) : next.add(id);
+    importSel.value = next;
+  }
+  function confirmImport() {
+    const picked = importEvents.value.filter((e) => importSel.value.has(e.id));
+    if (!picked.length) return;
+    for (const e of picked) {
+      const minutes = Math.max(1, Math.round(((e.endAt ?? Date.now()) - e.startAt) / 60000));
+      formItems.value.push({ title: e.title, estimateMin: String(minutes) });
+    }
+    showImport.value = false;
+    showToast(`已导入 ${picked.length} 条记录为子任务（可继续删改）`);
+  }
 
 const stats = ref({});
 async function load() {
@@ -128,7 +163,25 @@ function toggleStats(id) {
       <div class="tpl-form">
         <div class="tpl-form-title">{{ editing ? '编辑模板' : '新建模板' }}</div>
         <van-field v-model="formName" label="名称" placeholder="模板名称（如：晨间例会）" />
-        <div class="tpl-items-label">子任务（可设预估用时）</div>
+        <div class="tpl-items-label">
+          子任务（可设预估用时）
+          <button class="tpl-import-btn" @click="openImport">从记录导入</button>
+        </div>
+        <div v-if="showImport" class="tpl-import">
+          <div class="tpl-import-head">
+            <input type="date" v-model="importDate" @change="loadImportEvents" />
+            <span class="muted">{{ importEvents.length }} 条记录</span>
+          </div>
+          <label v-for="e in importEvents" :key="e.id" class="tpl-import-row">
+            <input type="checkbox" :checked="importSel.has(e.id)" @change="toggleImport(e.id)" />
+            <span class="tpl-import-title">{{ e.title }}</span>
+            <span class="muted">{{ new Date(e.startAt).toTimeString().slice(0, 5) }}–{{ e.endAt ? new Date(e.endAt).toTimeString().slice(0, 5) : '进行中' }}</span>
+          </label>
+          <div v-if="!importEvents.length" class="muted" style="padding: 6px 0">该日期无记录</div>
+          <van-button size="small" type="primary" round :disabled="!importSel.size" @click="confirmImport">
+            导入选中的 {{ importSel.size }} 条
+          </van-button>
+        </div>
         <div v-for="(it, i) in formItems" :key="i" class="tpl-item-row">
           <van-field v-model="it.title" placeholder="子任务标题" />
           <van-field v-model="it.estimateMin" type="digit" placeholder="预估/分">
@@ -209,6 +262,40 @@ function toggleStats(id) {
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
+}
+.tpl-import-btn {
+  float: right;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tpl-import {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.tpl-import-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.tpl-import-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.tpl-import-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tpl-item-row .van-field {
   background: var(--card-2);

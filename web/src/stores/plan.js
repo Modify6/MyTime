@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { getPlans, putRow, softDelete, appendPlanLog, getPlanEvents, onChange } from '../db/repo.js';
+import { getPlans, getTemplates, putRow, softDelete, appendPlanLog, getPlanEvents, onChange } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
 import { logInfo } from '../lib/logger.js';
 import { useTimerStore } from './timer.js';
