@@ -144,7 +144,7 @@ sudo bash /opt/mytime/deploy/server-update.sh
 
 - 版本唯一来源：`web/package.json` 的 `version`；构建时注入前端，打包前自动同步到 APK 的 `versionName/versionCode`
 - 一键发版：`node scripts/release.mjs patch|minor|major`——自动完成 单元测试 → 版本贯通 → CHANGELOG 生成 → 构建 → 提交 → 标签 → 推送（失败重试）
-- **例行收尾**：每次开发收工自动打包新版本 APK 到项目根目录（scripts/apk.mjs，小版本号自动递增），并在上方「需求记录」表追加本次需求
+- **例行收尾**：每次开发收工自动打包新版本 APK 到项目根目录（scripts/apk.mjs，小版本号自动递增），并在上方「需求记录」表追加本次需求；`node scripts/iteration-stats.mjs` 刷新下方迭代统计
 - **发版三件套纪律**：`CHANGELOG.md` 条目、README（功能清单/路线）、`docs/lessons.md`（教训档案）随每次发版同步更新
 - 应用内「设置 → 运行日志」与「关于」显示当前版本
 
@@ -212,6 +212,10 @@ APK 前端是打包时内置的，更新手机端 = 安装新 APK；网页端刷
 - [ ] 桌面小组件调优（多尺寸/主题跟随）、专注模式
 - [ ] 统计周报推送
 - [ ] 同步长连接（SSE，秒级双向推送；当前 30 秒轮询对个人场景已足够）
+
+<!-- ITERATION-STATS:START（由 scripts/iteration-stats.mjs 自动生成，勿手改） -->
+**正式迭代 21 次**（v0.2.0 → v0.13.7，历时 6 天 · 均 3.5 次/天）｜minor 11 次 · patch 9 次｜**需求记录 19 条**｜单测 47 例 · E2E 场景 9 个
+<!-- ITERATION-STATS:END -->
 
 ## 需求记录（提出 → 内容 → 落实）
 
