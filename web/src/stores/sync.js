@@ -61,8 +61,7 @@ export const useSyncStore = defineStore('sync', {
         const res = await api.categories();
         for (const row of res.categories || []) await adoptRow('categories', row);
       } catch (e) {
-        logError('sync', `分类目录对账失败: ${String(e).split('
-')[0]}`);
+        logError('sync', `分类目录对账失败: ${String(e).split('\n')[0]}`);
       }
     },
     // 自动每日备份：同步成功后检查，距上次快照超过 24 小时则让服务端做一次快照
