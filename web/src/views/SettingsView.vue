@@ -13,6 +13,7 @@ import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
 import { isNativeApp, nativeReminder, bindBackClose, openAppSettings } from '../lib/native.js';
 import VersionHistory from '../components/VersionHistory.vue';
+import FeatureNote from '../components/FeatureNote.vue';
 import dayjs from 'dayjs';
 
 const auth = useAuthStore();
@@ -304,7 +305,7 @@ onUnmounted(() => clearInterval(logTimer));
 
 <template>
   <div class="page">
-    <div class="page-head"><h1>设置</h1></div>
+    <div class="page-head"><h1>设置</h1><FeatureNote k="settings" /></div>
 
     <!-- 同步 -->
     <div class="card">

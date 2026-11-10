@@ -12,6 +12,7 @@ import PlanForm from '../components/PlanForm.vue';
 import HandoffDialog from '../components/HandoffDialog.vue';
 import PauseReasonDialog from '../components/PauseReasonDialog.vue';
 import PlanCloseDialog from '../components/PlanCloseDialog.vue';
+import FeatureNote from '../components/FeatureNote.vue';
 import TemplateManager from '../components/TemplateManager.vue';
 
 const router = useRouter();
@@ -168,6 +169,7 @@ function openDetail(p) {
   <div class="page">
     <div class="page-head">
       <h1>计划</h1>
+      <FeatureNote k="plan" />
       <van-button v-if="planTab === 'plans'" size="small" plain round icon="plus" @click="openForm">新建</van-button>
     </div>
 

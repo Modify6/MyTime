@@ -9,6 +9,7 @@ import { useCatalogStore } from '../stores/catalog.js';
 import EventItem from '../components/EventItem.vue';
 import EventEditor from '../components/EventEditor.vue';
 import { bindBackClose } from '../lib/native.js';
+import FeatureNote from '../components/FeatureNote.vue';
 
 const catalog = useCatalogStore();
 
@@ -217,6 +218,7 @@ function addRecord() {
   <div class="page">
     <div class="page-head">
       <h1>记录</h1>
+      <FeatureNote k="records" />
       <van-button size="small" plain round icon="plus" @click="addRecord">补录</van-button>
     </div>
 

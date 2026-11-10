@@ -18,6 +18,7 @@ import { getAllEvents } from '../db/repo.js';
 import dayjs from 'dayjs';
 import EChart from '../components/EChart.vue';
 import SyncDot from '../components/SyncDot.vue';
+import FeatureNote from '../components/FeatureNote.vue';
 import { useCatalogStore } from '../stores/catalog.js';
 
 const catalog = useCatalogStore();
@@ -174,6 +175,7 @@ const planRowMax = computed(() =>
   <div class="page">
     <div class="page-head">
       <h1>统计</h1>
+      <FeatureNote k="stats" />
       <SyncDot />
     </div>
 

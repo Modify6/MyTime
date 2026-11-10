@@ -16,6 +16,7 @@ import StartSheet from '../components/StartSheet.vue';
 import EventEditor from '../components/EventEditor.vue';
 import QuickLaunch from '../components/QuickLaunch.vue';
 import SyncDot from '../components/SyncDot.vue';
+import FeatureNote from '../components/FeatureNote.vue';
 
 const timer = useTimerStore();
 const catalog = useCatalogStore();
@@ -127,6 +128,7 @@ function openEdit(ev) {
   <div class="page">
     <div class="page-head">
       <h1>今日</h1>
+      <FeatureNote k="today" />
       <SyncDot />
     </div>
 
