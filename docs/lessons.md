@@ -100,3 +100,10 @@
 - **根因**：ed71a52 的"移除"实际是**内容替换**（diff 显示 12 行改动而非文件删除）——文件从未离开 git 索引；而 **.gitignore 对已跟踪文件完全无效**，后续每次 `git add -A` 都会照常提交它。CRLF 警告列表是唯一暴露点，差点再次漏过。
 - **修复**：`git rm --cached` 三件（私钥/公钥/deploy/config）断开跟踪并推送；密钥轮换 v4（git 历史里的 v3 视为已泄露：用历史中的 v3 私钥做最后一次救援登录，把 v4 公钥写入服务器、摘除 v3、销毁救援文件）；pre-commit 新增敏感文件跟踪闸门（`git ls-files` 全量 + 暂存区双检查，命中即阻断）。
 - **教训**：①"移除敏感文件"提交后必须用 `git ls-files | grep <路径>` 验证为空才算完成——看 commit 消息/diff 摘要不可靠；② .gitignore 只防"未跟踪文件被加入"，已跟踪文件的排除要靠 `git rm --cached`，且要做进自动化检查而不是靠记忆；③ 已推送到公开仓库的私钥唯一正确的处置是**轮换**（服务端换锁），清史（filter-repo）只是锦上添花；④ 这类闸门该在第一次事故后就建——第二次事故的成本远高于闸门本身。
+
+## 15. schema 重写误删 goals 表声明：启动加载全链路静默中断（v0.14.0 发版前自测发现）
+
+- **现象**：统计页色带全部回退灰色（#90A4AE）、分类图例同灰；页面探针显示 pinia catalog `loaded:false`，`cat.load()` 抛 `Cannot read properties of undefined (reading 'toArray')`。
+- **根因**：模板功能（dfdf44f）重写 db/schema.js 时误删 v1 的 `goals: 'id, updatedAt, archived'` 声明 → Dexie 未声明表 `db.goals === undefined` → `catalog.load()`（getGoals）每次抛错 → App.onMounted 中断，**其后的 sync.setup() 也永不执行**——分类/目标全空 + 自动同步不启动。一个"索引行"的缺失造成三处看似无关的故障。
+- **修复**：恢复 v1 声明 + 新增 version(5) 显式重建 goals 表（自愈被坏版本建出的 v4 库：缺表补建、已有 no-op）；发版前 Playwright 实测页面渲染捕获。
+- **教训**：① Dexie 表必须出现在某个 version().stores() 里，重写 schema 文件是高危操作——改动后要用「代码中用到的表名」与「声明过的表名」做差集审计（本次 grep 一分钟就定位）；② 页面加载链路的 await 序列是脆弱的串联：前面抛错，后面所有初始化静默消失，故障表现远离根因文件；③ ECharts 按需注册漏 TitleComponent 这类"静默忽略"问题，视觉自测必须覆盖每一个新引入的图表元素，不能只看"图出来了"。
