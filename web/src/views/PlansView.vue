@@ -124,8 +124,16 @@ async function finishPlan(p, status, reason) {
   }
 }
 async function removePlan(p) {
+  try {
+    await showConfirmDialog({
+      title: '删除该计划？',
+      message: '仅删除这条计划记录，已记录的时间数据会保留。',
+    });
+  } catch {
+    return;
+  }
   await planStore.remove(p.id);
-  showToast('已删除');
+  showToast('已删除（时间数据保留）');
 }
 
 function openDetail(p) {
@@ -184,12 +192,13 @@ function openDetail(p) {
     </template>
 
     <!-- 等待执行：预排 -->
-    <div class="section-title">
-      <span>提前规划</span>
-      <span class="muted">编排好，随时启动</span>
-    </div>
-    <div class="card">
-      <template v-if="waitingPlanned.length">
+    <template v-if="planTab === 'plans'">
+      <div class="section-title">
+        <span>提前规划</span>
+        <span class="muted">编排好，随时启动</span>
+      </div>
+      <div class="card">
+        <template v-if="waitingPlanned.length">
         <div class="plan-row" v-for="p in waitingPlanned" :key="p.id">
           <div class="plan-main" @click="openDetail(p)">
             <div class="plan-title">{{ p.title }}</div>
@@ -201,18 +210,21 @@ function openDetail(p) {
           <div class="plan-actions">
             <van-button size="small" round type="primary" @click.stop="startPlan(p)">启动</van-button>
             <van-button size="small" round plain @click.stop="editPlan(p)">编辑</van-button>
+            <van-button size="small" round plain type="danger" @click.stop="removePlan(p)">删除</van-button>
           </div>
         </div>
       </template>
       <div v-else class="empty-tip">暂无预排计划<br />点「新建」提前编排要做的事</div>
-    </div>
+      </div>
+    </template>
 
     <!-- 等待执行：临时 -->
-    <div class="section-title">
-      <span>临时计划（等待执行）</span>
-    </div>
-    <div class="card">
-      <template v-if="waitingTemp.length">
+    <template v-if="planTab === 'plans'">
+      <div class="section-title">
+        <span>临时计划（等待执行）</span>
+      </div>
+      <div class="card">
+        <template v-if="waitingTemp.length">
         <div class="plan-row" v-for="p in waitingTemp" :key="p.id">
           <div class="plan-main" @click="openDetail(p)">
             <div class="plan-title">{{ p.title }} <span class="chip kind">临时</span></div>
@@ -221,16 +233,19 @@ function openDetail(p) {
           <div class="plan-actions">
             <van-button size="small" round type="primary" @click.stop="startPlan(p)">启动</van-button>
             <van-button size="small" round plain @click.stop="editPlan(p)">编辑</van-button>
+            <van-button size="small" round plain type="danger" @click.stop="removePlan(p)">删除</van-button>
           </div>
         </div>
       </template>
       <div v-else class="empty-tip">暂无等待中的临时计划</div>
-    </div>
+      </div>
+    </template>
 
     <!-- 已完成 / 已取消 -->
-    <div class="section-title">已完成 / 已取消</div>
-    <div class="card">
-      <template v-if="planStore.finishedPlans.length">
+    <template v-if="planTab === 'plans'">
+      <div class="section-title">已完成 / 已取消</div>
+      <div class="card">
+        <template v-if="planStore.finishedPlans.length">
         <div class="plan-row" v-for="p in planStore.finishedPlans" :key="p.id">
           <div class="plan-main" @click="openDetail(p)">
             <div class="plan-title" style="color: var(--text-2)">{{ p.title }}</div>
@@ -242,7 +257,8 @@ function openDetail(p) {
         </div>
       </template>
       <div v-else class="empty-tip">暂无归档</div>
-    </div>
+      </div>
+    </template>
 
     <PlanForm v-model:show="showForm" :plan="editingPlan" />
     <HandoffDialog v-model:show="showHandoff" :new-plan="handoffPlan" @confirm="onHandoffConfirm" />
@@ -252,6 +268,28 @@ function openDetail(p) {
 </template>
 
 <style scoped>
+.plan-tabs {
+  display: flex;
+  background: var(--card-2);
+  border-radius: 999px;
+  padding: 3px;
+  margin-bottom: 12px;
+}
+.plan-tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.plan-tabs button.active {
+  background: var(--card);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
 .plan-card {
   cursor: default;
 }
