@@ -49,3 +49,6 @@ MyTime-v*.apk
 # 调试临时脚本与错误栈
 .tmp-*.mjs
 .err-stack.*
+
+# E2E 隔离数据目录（playwright webServer DATA_DIR）
+server/data-e2e/
