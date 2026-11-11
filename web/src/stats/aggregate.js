@@ -113,6 +113,23 @@ export function hourlySeries(events, { days = 30, end = Date.now() } = {}) {
   return order.map((categoryId) => ({ categoryId, hours: byCat.get(categoryId) }));
 }
 
+// 当日时间重叠检测：返回与先前记录在时间上交叉的事件条数（首尾相接不算）。
+// 柳比歇夫法要求串行记账；重叠多来自补录交叉或忘打卡，时间轴泳道并排呈现，
+// 此计数用于页面给出修正提示。进行中事件（endAt null）按当前时刻参与。
+export function overlapCount(events) {
+  const segs = (events || [])
+    .filter((e) => e && !e.deleted)
+    .map((e) => ({ start: e.startAt, end: e.endAt ?? Date.now() }))
+    .sort((a, b) => a.start - b.start);
+  let lastEnd = 0;
+  let n = 0;
+  for (const s of segs) {
+    if (s.start < lastEnd) n++;
+    lastEnd = Math.max(lastEnd, s.end);
+  }
+  return n;
+}
+
 // 单日 24 小时时间轴：把时间重叠的事件分配到互不重叠的泳道（贪心）。
 // 相接（start == 前者 end）也视为视觉冲突另起泳道——时间轴渲染层按"局部并发数"
 // 等分条带宽度，相接事件并排显示（日历类 App 标准行为），不重叠的条带恢复全宽。

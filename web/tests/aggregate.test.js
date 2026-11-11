@@ -10,6 +10,7 @@ import {
   estimateByCategory,
   heatmapData,
   hourlySeries,
+  overlapCount,
 } from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
@@ -228,5 +229,36 @@ describe('hourlySeries', () => {
     expect(rows[0].hours[9]).toBe(HOUR);
     expect(rows[0].hours[15]).toBe(HOUR);
     expect(rows[1].hours[14]).toBe(HOUR);
+  });
+});
+
+describe('overlapCount', () => {
+  const NOW = new Date(2026, 10, 12, 12, 0, 0).getTime();
+  const at = (h, m = 0) => new Date(2026, 10, 12, h, m, 0).getTime();
+
+  it('无重叠返回 0，首尾相接不算重叠', () => {
+    expect(overlapCount([
+      ev('a', 'x', 'c', at(9), at(10)),
+      ev('b', 'x', 'c', at(10), at(11)), // 相接
+      ev('c', 'x', 'c', at(11, 30), at(12)), // 有空隙
+    ])).toBe(0);
+  });
+
+  it('交叉计数：与此前任意一段重叠即计 1', () => {
+    // 9-11、10:30-13、11:06-13 → 蓝、橙两条与前面重叠
+    expect(overlapCount([
+      ev('a', 'x', 'c', at(9), at(11)),
+      ev('b', 'x', 'c', at(10, 30), at(13)),
+      ev('c', 'x', 'c', at(11, 6), at(13)),
+    ])).toBe(2);
+  });
+
+  it('进行中事件（endAt null）按当前时刻参与，软删不计', () => {
+    const r = overlapCount([
+      ev('a', 'x', 'c', at(9), at(11)),
+      ev('b', 'x', 'c', at(10, 30), null), // 进行中，与 a 重叠
+      ev('c', 'x', 'c', at(20), at(21), { deleted: 1 }),
+    ]);
+    expect(r).toBe(1);
   });
 });

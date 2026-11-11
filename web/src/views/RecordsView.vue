@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import dayjs from 'dayjs';
 import { getEventsBetween, onChange } from '../db/repo.js';
 import { monthRange, fmtDayLabel, fmtDur, shiftCursor } from '../lib/time.js';
-import { totalMs, layoutDayLanes } from '../stats/aggregate.js';
+import { totalMs, layoutDayLanes, overlapCount } from '../stats/aggregate.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import EventItem from '../components/EventItem.vue';
 import EventEditor from '../components/EventEditor.vue';
@@ -107,6 +107,9 @@ const axisStats = computed(() => {
     recorded += Math.min(e.endAt ?? Date.now(), dayEnd) - Math.max(e.startAt, dayStart);
   return { recorded: Math.max(0, recorded), idle: Math.max(0, 86_400_000 - Math.max(0, recorded)) };
 });
+
+// 当日时间重叠条数：柳比歇夫法要求串行记账，重叠多为补录交叉/忘打卡，提示用户点色块修正
+const axisOverlap = computed(() => (axisDay.value ? overlapCount(dayEvents(axisDay.value)) : 0));
 
 const axisDayShow = computed({
   get: () => axisDay.value != null,
@@ -295,6 +298,10 @@ function addRecord() {
         </div>
         <div class="axis-sub" v-if="axisStats">
           记录 {{ fmtDur(axisStats.recorded) }} · 空白 {{ fmtDur(axisStats.idle) }}
+        </div>
+        <div class="hint" v-if="axisOverlap" style="text-align: center; margin-top: 4px">
+          <span class="t-up">该日有 {{ axisOverlap }} 段记录时间重叠</span> ·
+          同一时刻只记一件事，点色块<b>可修正</b>
         </div>
 
         <div class="axis-body">
