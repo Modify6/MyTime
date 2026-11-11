@@ -91,6 +91,28 @@ export function dailySeries(events, { days = 30, end = Date.now() } = {}) {
   return out;
 }
 
+// 投入时段分布：近 N 天事件按「startAt 的小时」（本地时区）归入 24 格，
+// 跨界事件整体计入起始小时（app 约定同 dailySeries）；按分类分组供堆叠柱。
+// 返回 [{ categoryId, hours: [ms×24] }]，顺序按分类首次出现，稳定输出。
+export function hourlySeries(events, { days = 30, end = Date.now() } = {}) {
+  const start = end - days * 86_400_000;
+  const order = [];
+  const byCat = new Map();
+  for (const e of events) {
+    if (e.deleted) continue;
+    if (e.startAt < start || e.startAt >= end) continue;
+    const ms = dur(e);
+    if (ms <= 0) continue;
+    const cid = e.categoryId || '_';
+    if (!byCat.has(cid)) {
+      byCat.set(cid, Array(24).fill(0));
+      order.push(cid);
+    }
+    byCat.get(cid)[dayjs(e.startAt).hour()] += ms;
+  }
+  return order.map((categoryId) => ({ categoryId, hours: byCat.get(categoryId) }));
+}
+
 // 单日 24 小时时间轴：把时间重叠的事件分配到互不重叠的泳道（贪心）。
 // 相接（start == 前者 end）也视为视觉冲突另起泳道——时间轴渲染层按"局部并发数"
 // 等分条带宽度，相接事件并排显示（日历类 App 标准行为），不重叠的条带恢复全宽。

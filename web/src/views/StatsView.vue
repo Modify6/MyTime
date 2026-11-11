@@ -12,6 +12,7 @@ import {
   estimateCompare,
   estimateByCategory,
   heatmapData,
+  hourlySeries,
 } from '../stats/aggregate.js';
 import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
 import { goalProgress, budgetProgress, GOAL_KIND_LABEL } from '../stats/goals.js';
@@ -271,6 +272,39 @@ const trendOption = computed(() => {
   };
 });
 
+// ⑦ 投入时段分布：近 30 天事件按 startAt 小时归入 0–23 时，按分类堆叠（几点最专注）
+const hourBarsOption = computed(() => {
+  const rows = hourlySeries(heatEvents.value, { days: 30 });
+  const total = rows.reduce((s, r) => s + r.hours.reduce((a, b) => a + b, 0), 0);
+  if (!total) return null;
+  const last = rows.length - 1;
+  const series = rows.map((r, si) => ({
+    name: catalog.catName(r.categoryId),
+    type: 'bar',
+    stack: 'total',
+    barWidth: 9,
+    itemStyle: { color: catalog.catColor(r.categoryId), borderRadius: si === last ? [3, 3, 0, 0] : 0 },
+    data: r.hours.map((ms) => Math.round(ms / 60000)),
+  }));
+  return {
+    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+    grid: { left: 6, right: 6, top: 14, bottom: 0, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: Array.from({ length: 24 }, (_, h) => `${h}时`),
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#8884' } },
+      axisLabel: { fontSize: 9, color: '#98a2b3', interval: 2 },
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: '#8882' } },
+      axisLabel: { fontSize: 9, color: '#98a2b3', formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
+    },
+    series,
+  };
+});
+
 // ⑥ 复盘时间流向：两条全宽堆叠色条（本期 vs 上期，按分类着色）
 const flowStack = computed(() => {
   const rows = review.value.catFlow.filter((f) => f.nowMs > 0 || f.prevMs > 0);
@@ -466,6 +500,15 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
         <span class="muted">每日投入</span>
       </div>
       <EChart :option="trendOption" height="120px" />
+    </div>
+
+    <!-- 投入时段分布：近 30 天 0–23 时，几点最专注 -->
+    <div class="card" v-if="period !== 'review' && hourBarsOption">
+      <div class="section-title" style="margin-top: 0">
+        <span>投入时段分布</span>
+        <span class="muted">近 30 天 · 越高的时段越专注</span>
+      </div>
+      <EChart :option="hourBarsOption" height="150px" />
     </div>
 
     <!-- 复盘模式：计划 vs 实际 + 时间流向堆叠 + 挂起原因 -->

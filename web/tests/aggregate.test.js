@@ -9,6 +9,7 @@ import {
   estimateCompare,
   estimateByCategory,
   heatmapData,
+  hourlySeries,
 } from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
@@ -182,5 +183,50 @@ describe('LWW 合并规则', () => {
     expect(shouldReplace({ updatedAt: 10 }, { updatedAt: 10 })).toBe(false);
     expect(shouldReplace({ updatedAt: 10 }, { updatedAt: 9 })).toBe(false);
     expect(shouldReplace({ updatedAt: 10 }, null)).toBe(false);
+  });
+});
+
+describe('hourlySeries', () => {
+  const END = new Date(2026, 10, 12, 12, 0, 0).getTime(); // 固定窗口终点
+  const day0 = new Date(END); day0.setHours(0, 0, 0, 0); // 午夜锚点
+  const at = (dayAgo, h, m = 0) => day0.getTime() - dayAgo * 86_400_000 + h * 3_600_000 + m * 60_000;
+
+  it('按 startAt 小时归属，同小时跨天合计', () => {
+    const events = [
+      ev('a', 'x', 'cat-a', at(1, 9), at(1, 10)), // 昨天上午 9-10 点
+      ev('b', 'x', 'cat-a', at(2, 9), at(2, 10)), // 前天同时段 1h
+    ];
+    const [row] = hourlySeries(events, { days: 30, end: END });
+    expect(row.categoryId).toBe('cat-a');
+    expect(row.hours[9]).toBe(2 * HOUR);
+    expect(row.hours.reduce((s, v) => s + v, 0)).toBe(2 * HOUR);
+  });
+
+  it('窗口外事件不计入', () => {
+    const events = [
+      ev('a', 'x', 'cat-a', END + HOUR, END + 2 * HOUR), // 窗口后
+      ev('b', 'x', 'cat-a', END - 31 * 86_400_000, END - 31 * 86_400_000 + HOUR), // 窗口前
+    ];
+    const rows = hourlySeries(events, { days: 30, end: END });
+    expect(rows.length ? rows[0].hours.reduce((s, v) => s + v, 0) : 0).toBe(0);
+  });
+
+  it('进行中事件（endAt null）不计', () => {
+    const events = [ev('a', 'x', 'cat-a', at(0, 10), null)];
+    const rows = hourlySeries(events, { days: 30, end: END });
+    expect(rows.length ? rows[0].hours.reduce((s, v) => s + v, 0) : 0).toBe(0);
+  });
+
+  it('按分类分组为独立 series，顺序按首次出现', () => {
+    const events = [
+      ev('a', 'x', 'cat-a', at(1, 9), at(1, 10)),
+      ev('b', 'x', 'cat-b', at(1, 14), at(1, 15)),
+      ev('c', 'x', 'cat-a', at(1, 15), at(1, 16)),
+    ];
+    const rows = hourlySeries(events, { days: 30, end: END });
+    expect(rows.map((r) => r.categoryId)).toEqual(['cat-a', 'cat-b']);
+    expect(rows[0].hours[9]).toBe(HOUR);
+    expect(rows[0].hours[15]).toBe(HOUR);
+    expect(rows[1].hours[14]).toBe(HOUR);
   });
 });
