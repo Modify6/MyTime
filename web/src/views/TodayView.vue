@@ -44,6 +44,17 @@ onUnmounted(() => un?.());
 const catTotals = computed(() => byCategory(todayEvents.value));
 const dayTotal = computed(() => totalMs(todayEvents.value));
 
+// 计时中圆环：分类色弧 = 今日该分类已投入占今日总投入比例（含最小可见弧，首段不给空环）
+const RING_CIRC = 2 * Math.PI * 86;
+const runArcPct = computed(() => {
+  const cid = timer.runningEvent?.categoryId;
+  if (!cid || !dayTotal.value) return 0;
+  const ms = catTotals.value.find((t) => t.categoryId === cid)?.ms || 0;
+  return Math.min(100, Math.round((ms / dayTotal.value) * 100));
+});
+const runArcOffset = computed(() => RING_CIRC * (1 - Math.max(runArcPct.value, 3) / 100));
+const runArcLabel = computed(() => (runArcPct.value > 0 ? `今日该分类 ${runArcPct.value}%` : '今天的第一段'));
+
 // 环绕快捷球（习惯优先，补齐到 6 个）与面板推荐位
 const quickItems = computed(() =>
   quickActivities(allEvents.value, Date.now(), 6).map((q) => ({ ...q, color: catalog.catColor(q.categoryId) }))
@@ -132,10 +143,25 @@ function openEdit(ev) {
       <SyncDot />
     </div>
 
-    <!-- 计时中 -->
+    <!-- 计时中：圆环仪式感（分类色弧 = 今日该分类已投入占比） -->
     <div v-if="timer.runningEvent" class="card run-card">
-      <div class="run-title"><span class="live-dot"></span>{{ timer.runningEvent.title }}</div>
-      <div class="run-clock">{{ fmtClock(timer.elapsedMs) }}</div>
+      <div class="run-head"><span class="live-dot"></span>{{ timer.runningEvent.title }}</div>
+      <div class="run-ring">
+        <svg viewBox="0 0 200 200">
+          <circle class="run-track" cx="100" cy="100" r="86" />
+          <circle
+            class="run-arc"
+            cx="100" cy="100" r="86"
+            :style="{ '--rc': catalog.catColor(timer.runningEvent.categoryId) }"
+            :stroke-dasharray="RING_CIRC"
+            :stroke-dashoffset="runArcOffset"
+          />
+        </svg>
+        <div class="run-center">
+          <div class="run-clock">{{ fmtClock(timer.elapsedMs) }}</div>
+          <div class="run-sub">{{ runArcLabel }}</div>
+        </div>
+      </div>
       <div class="ev-chips" style="justify-content: center">
         <span class="chip" :style="{ '--c': catalog.catColor(timer.runningEvent.categoryId) }">
           <i class="dot"></i>{{ catalog.catName(timer.runningEvent.categoryId) }}
@@ -149,12 +175,12 @@ function openEdit(ev) {
           <i class="dot"></i>{{ catalog.goalName(timer.runningEvent.goalId) }}
         </span>
       </div>
-      <div class="run-actions">
-        <van-button round plain type="danger" @click="discard">放弃</van-button>
-        <van-button round plain type="warning" v-if="timer.runningEvent.planId" @click="showPauseReason = true">挂起</van-button>
-        <van-button round plain @click="openEdit(timer.runningEvent)">备注</van-button>
-        <van-button round type="primary" @click="stop">结束打卡</van-button>
+      <div class="run-ghosts">
+        <span @click="discard">⊘ 放弃</span>
+        <span v-if="timer.runningEvent.planId" @click="showPauseReason = true">⏸ 挂起</span>
+        <span @click="openEdit(timer.runningEvent)">✎ 备注</span>
       </div>
+      <button class="run-stop" @click="stop">■ 结束打卡</button>
       <div class="muted" style="text-align: center; margin-top: 10px">
         从 {{ new Date(timer.runningEvent.startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }} 开始
       </div>
@@ -224,12 +250,16 @@ function openEdit(ev) {
 <style scoped>
 .run-card {
   text-align: center;
-  padding: 26px 16px 18px;
+  padding: 22px 16px 16px;
   animation: fadeUp 0.35s ease both;
 }
-.run-title {
+.run-head {
   font-size: 17px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 .live-dot {
   display: inline-block;
@@ -237,31 +267,83 @@ function openEdit(ev) {
   height: 8px;
   border-radius: 50%;
   background: #34c273;
-  margin-right: 7px;
   animation: blink 1.2s infinite;
 }
+.run-ring {
+  position: relative;
+  width: 200px;
+  margin: 14px auto 10px;
+}
+.run-ring svg {
+  display: block;
+  width: 100%;
+  transform: rotate(-90deg);
+}
+.run-track,
+.run-arc {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+.run-track {
+  stroke: var(--track);
+}
+.run-arc {
+  stroke: var(--rc, #90a4ae);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--rc, #90a4ae) 45%, transparent));
+  transition: stroke-dashoffset 0.6s ease;
+}
+.run-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
 .run-clock {
-  font-size: 44px;
+  font-size: 34px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  margin: 10px 0 8px;
-  color: var(--brand);
+  color: var(--text);
   letter-spacing: 1px;
-  animation: glowPulse 2.8s ease-in-out infinite;
-  border-radius: 16px;
 }
-.run-actions {
+.run-sub {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.run-ghosts {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  justify-content: center;
-  margin-top: 14px;
+  margin: 12px 0;
 }
-.run-actions .van-button {
-  flex: 0 1 calc(50% - 4px); /* 窄屏两两换行，结束打卡完整可见 */
-  min-width: 88px;
-  padding: 0 12px;
-  margin: 0;
+.run-ghosts span {
+  flex: 1;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-2);
+  background: var(--seg-bg);
+  border-radius: 999px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.run-ghosts span:active {
+  color: var(--brand);
+}
+.run-stop {
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 23px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.run-stop:active {
+  opacity: 0.85;
 }
 
 /* 居中的主打卡按钮：呼吸光晕 + 旋转虚线环 */
