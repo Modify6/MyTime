@@ -288,11 +288,39 @@ body {
   font-size: 12px;
 }
 
+/* 说明段：比 .muted 高一档的可读层——整句用次级色，关键词品牌色加重 */
+.hint {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.75;
+}
+.hint b,
+.hint em {
+  color: var(--brand);
+  font-weight: 600;
+  font-style: normal;
+}
+/* 语义色（正/负对照等，与图表用色一致） */
+.t-up {
+  color: #f5a623;
+  font-weight: 600;
+}
+.t-down {
+  color: #34c273;
+  font-weight: 600;
+}
+
 .empty-tip {
   text-align: center;
   color: var(--text-3);
   padding: 28px 0;
   font-size: 13px;
+}
+.empty-tip b,
+.empty-tip em {
+  color: var(--brand);
+  font-weight: 600;
+  font-style: normal;
 }
 
 .stat-grid {

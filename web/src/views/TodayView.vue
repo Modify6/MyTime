@@ -207,7 +207,7 @@ function openEdit(ev) {
       <template v-if="todayEvents.length">
         <EventItem v-for="ev in todayEvents" :key="ev.id" :event="ev" @edit="openEdit" />
       </template>
-      <div v-else class="empty-tip">今天还没有记录<br />点上方快捷球开始第一次打卡</div>
+      <div v-else class="empty-tip">今天还没有记录<br />点上方<b>快捷球</b>开始第一次打卡</div>
     </div>
 
     <PauseReasonDialog v-model:show="showPauseReason" @confirm="({ reason }) => confirmPause(reason)" />

@@ -469,7 +469,7 @@ onUnmounted(() => clearInterval(logTimer));
         <van-button round block plain :loading="importing" @click="$refs.file.click()">导入 JSON</van-button>
         <input ref="file" type="file" accept="application/json,.json" style="display: none" @change="importData" />
       </div>
-      <div class="muted" style="margin-top: 8px">导出包含全部数据（含已删除记录的墓碑，用于多端同步一致性）。</div>
+      <div class="hint" style="margin-top: 8px">导出包含全部数据（含已删除记录的<b>墓碑</b>，用于多端同步一致性）。</div>
 
       <template v-if="auth.hasToken">
         <div class="backup-line">
@@ -489,7 +489,7 @@ onUnmounted(() => clearInterval(logTimer));
           <div class="muted" style="padding: 3px 0 0">点击文件名可下载</div>
         </div>
       </template>
-      <div v-else class="muted" style="margin-top: 8px">连接同步服务器后，可开启「自动每日快照」——服务器每天留存一份数据副本（保留 30 份）。</div>
+      <div v-else class="hint" style="margin-top: 8px">连接同步服务器后，可开启「<b>自动每日快照</b>」——服务器每天留存一份数据副本（保留 30 份）。</div>
     </div>
 
     <!-- 运行日志 -->

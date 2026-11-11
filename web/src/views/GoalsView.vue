@@ -65,8 +65,8 @@ function add() {
     </div>
 
     <div class="intro card">
-      给事件挂上一个"大事"，就能看到累计投入了多少时间 ——
-      下次做类似的事，就知道它大概需要多久。
+      给事件挂上一个<b>"大事"</b>，就能看到累计投入了多少时间 ——
+      下次做类似的事，就知道它<b>大概需要多久</b>。
     </div>
 
     <template v-if="goalStats.length">
@@ -108,7 +108,12 @@ function add() {
 .intro {
   font-size: 12.5px;
   color: var(--text-2);
+  line-height: 1.75;
   padding: 10px 14px;
+}
+.intro b {
+  color: var(--brand);
+  font-weight: 600;
 }
 .goal-card {
   cursor: pointer;

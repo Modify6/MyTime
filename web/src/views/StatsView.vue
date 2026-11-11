@@ -544,7 +544,7 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
             </div>
           </div>
         </div>
-        <div v-else class="muted">本周期没有计划投入——从「计划」页启动计划，或打卡时关联计划</div>
+        <div v-else class="hint">本周期没有计划投入——从<b>「计划」页</b>启动计划，或打卡时关联计划</div>
       </div>
 
       <div class="card">
@@ -630,7 +630,7 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
             ></button>
           </div>
         </div>
-        <div class="muted" style="margin-top: 6px">颜色越深投入越多 · 点格子在下方查看那一天的明细</div>
+        <div class="hint" style="margin-top: 6px">颜色越深投入越多 · 点格子<b>跳转那一天的明细</b></div>
       </div>
 
       <div v-if="planActual" class="card">
@@ -644,7 +644,7 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
             （{{ planActual.pct > 0 ? '+' : '' }}{{ planActual.pct }}%）
           </b>
         </div>
-        <div class="muted" style="margin: 2px 0 8px">偏差为实际相对预估：正 = 超出预估，负 = 快于预估</div>
+        <div class="hint" style="margin: 2px 0 8px">偏差为实际相对预估：<span class="t-up">正 = 超出预估</span>，<span class="t-down">负 = 快于预估</span></div>
         <div class="pa-row" v-for="r in planByCat" :key="r.categoryId">
           <span class="name">{{ catalog.catName(r.categoryId) }}</span>
           <div class="pa-bars">

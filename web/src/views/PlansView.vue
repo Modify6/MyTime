@@ -239,7 +239,7 @@ function openDetail(p) {
           </div>
         </div>
       </template>
-      <div v-else class="empty-tip">暂无预排计划<br />点「新建」提前编排要做的事</div>
+      <div v-else class="empty-tip">暂无预排计划<br />点<b>「新建」</b>提前编排要做的事</div>
       </div>
     </template>
 
