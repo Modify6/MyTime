@@ -26,7 +26,7 @@ test('打卡后自动上推：SyncDot 自动变为已同步', async ({ page }) =
   await page.locator('.hero-center').click();
   await page.locator('.van-popup:visible').getByPlaceholder(/你在做什么/).fill(title);
   await page.locator('.van-popup:visible').getByRole('button', { name: '开始计时' }).click();
-  await expect(page.locator('.run-title')).toHaveText(new RegExp(title));
+  await expect(page.locator('.run-head')).toHaveText(new RegExp(title));
 
   // 状态点自动进入"已同步 hh:mm"（写后同步路径的状态流转）
   await expect(page.locator('.sync-dot')).toHaveText(/已同步 \d{1,2}:\d{2}/, { timeout: 8000 });

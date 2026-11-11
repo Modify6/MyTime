@@ -19,6 +19,8 @@ bindBackClose(() => props.show, () => emit('update:show', false));
 
 const form = ref(null);
 const splitAt = ref(null);
+// 草稿模式：补录新时段（event 为 null，或传入无 id 的预填草稿）——标题显示「补录时段」、无删除按钮
+const draftMode = ref(false);
 const running = computed(() => form.value && form.value.endAt == null);
 // 已结束且超过 5 分钟的记录才可拆分
 const canSplit = computed(
@@ -34,7 +36,12 @@ watch(
         ...props.event,
         estimateMin: props.event.estimateMs ? Math.round(props.event.estimateMs / 60000) : '',
       };
+      // 预填草稿（如空白补录助手传入 {startAt,endAt}）：补主键使其可保存
+      draftMode.value = !props.event.id;
+      if (!form.value.id) form.value.id = uuid();
+      if (!form.value.createdAt) form.value.createdAt = Date.now();
     } else {
+      draftMode.value = true;
       const now = Date.now();
       form.value = {
         id: uuid(),
@@ -121,7 +128,7 @@ async function remove() {
     @update:show="(v) => emit('update:show', v)"
   >
     <div v-if="form" class="sheet">
-      <div class="sheet-title">{{ event ? '编辑记录' : '补录时段' }}</div>
+      <div class="sheet-title">{{ draftMode ? '补录时段' : '编辑记录' }}</div>
 
       <div class="sheet-body">
 
@@ -193,7 +200,7 @@ async function remove() {
 
       <div class="sheet-foot">
       <div class="btn-row">
-        <van-button v-if="event" plain type="danger" @click="remove">删除</van-button>
+        <van-button v-if="!draftMode" plain type="danger" @click="remove">删除</van-button>
         <van-button v-if="running" type="primary" @click="stopNow">结束计时</van-button>
         <van-button type="primary" @click="save">保存</van-button>
       </div>

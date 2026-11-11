@@ -54,7 +54,7 @@ test('抢占手动打卡：全部挂起后计划启动、手动事件落账', as
     await page.locator('.van-popup:visible').getByPlaceholder(/你在做什么/).fill('手动学习');
     await page.locator('.van-popup:visible').getByRole('button', { name: '开始计时' }).click();
     await page.waitForTimeout(700);
-    await expect(page.locator('.run-title')).toHaveText(/手动学习/);
+    await expect(page.locator('.run-head')).toHaveText(/手动学习/);
   });
   await step('建计划C', async () => {
     await page.goto('/plans');
@@ -76,7 +76,7 @@ test('抢占手动打卡：全部挂起后计划启动、手动事件落账', as
   await step('今日运行卡切换为计划C', async () => {
     await page.goto('/');
     await page.waitForTimeout(600);
-    await expect(page.locator('.run-title')).toHaveText(/抢占计划C/);
+    await expect(page.locator('.run-head')).toHaveText(/抢占计划C/);
   });
 
   state.dump = await dumpDb(page);

@@ -65,6 +65,33 @@ export async function softDelete(table, id) {
   await putRow(table, { ...row, deleted: 1 });
 }
 
+// —— 墓碑维护：软删行长期堆积会让本地库与同步增量越来越重 ——
+// 策略：仅清理 90 天前的墓碑（远超任何正常同步窗口；离线超过 90 天的设备
+// 回来可能把已删数据当新数据推回，属可接受的极端情况，README 有说明）
+const SYNC_TABLES = ['events', 'categories', 'goals', 'plans', 'planLogs', 'templates'];
+
+export async function tombstoneStats() {
+  const byTable = {};
+  let total = 0;
+  for (const t of SYNC_TABLES) {
+    const n = await tableOf(t).filter((r) => r.deleted).count();
+    if (n > 0) byTable[t] = n;
+    total += n;
+  }
+  return { byTable, total };
+}
+
+export async function vacuumTombstones(olderThanMs = 90 * 86_400_000) {
+  const cutoff = Date.now() - olderThanMs;
+  let removed = 0;
+  for (const t of SYNC_TABLES) {
+    const keys = await tableOf(t).filter((r) => r.deleted && (r.updatedAt || 0) < cutoff).primaryKeys();
+    await tableOf(t).bulkDelete(keys);
+    removed += keys.length;
+  }
+  return removed;
+}
+
 // 采纳一条远端/导入行（保留其 updatedAt 参与 LWW）；push=true 时推送（导入场景）
 export async function adoptRow(table, row, { push = false } = {}) {
   if (!row || !row.id) return false;

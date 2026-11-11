@@ -130,6 +130,27 @@ export function overlapCount(events) {
   return n;
 }
 
+// 空白段检测（补录助手）：窗口 [start, end) 内未被任何记录覆盖、且时长 ≥ minMs 的空隙。
+// 已记录段截断到窗口（进行中按当前时刻截断），窗口终点截到 now（未来的"空白"不是遗漏）；
+// 头尾空隙同样返回，按时间升序。柳比歇夫法要求全天可回溯——大段空白是「没记全」的信号。
+export function blankSegments(events, { start, end, minMs = 3_600_000 } = {}) {
+  const now = Date.now();
+  const winEnd = Math.min(end, now);
+  if (winEnd <= start) return [];
+  const segs = (events || [])
+    .filter((e) => e && !e.deleted && e.startAt < winEnd && (e.endAt ?? now) > start)
+    .map((e) => ({ s: Math.max(e.startAt, start), e: Math.min(e.endAt ?? now, winEnd) }))
+    .sort((a, b) => a.s - b.s);
+  const blanks = [];
+  let cursor = start;
+  for (const seg of segs) {
+    if (seg.s > cursor) blanks.push({ start: cursor, end: seg.s });
+    cursor = Math.max(cursor, seg.e);
+  }
+  if (winEnd > cursor) blanks.push({ start: cursor, end: winEnd });
+  return blanks.filter((b) => b.end - b.start >= minMs);
+}
+
 // 单日 24 小时时间轴：把时间重叠的事件分配到互不重叠的泳道（贪心）。
 // 相接（start == 前者 end）也视为视觉冲突另起泳道——时间轴渲染层按"局部并发数"
 // 等分条带宽度，相接事件并排显示（日历类 App 标准行为），不重叠的条带恢复全宽。

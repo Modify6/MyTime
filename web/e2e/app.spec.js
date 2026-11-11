@@ -16,7 +16,7 @@ test.describe('MyTime 核心流程', () => {
     await page.getByRole('button', { name: '工作', exact: true }).click();
     await page.getByRole('button', { name: '开始计时' }).click();
     await expect(page.locator('.run-card')).toBeVisible();
-    await expect(page.locator('.run-title')).toContainText('E2E测试事项');
+    await expect(page.locator('.run-head')).toContainText('E2E测试事项');
     await page.waitForTimeout(1100);
     // 等开始 toast 退场，避免悬浮层拦截结束按钮的点击
     await expect(page.locator('.van-toast')).toBeHidden();

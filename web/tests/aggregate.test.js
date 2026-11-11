@@ -11,6 +11,7 @@ import {
   heatmapData,
   hourlySeries,
   overlapCount,
+  blankSegments,
 } from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
@@ -260,5 +261,44 @@ describe('overlapCount', () => {
       ev('c', 'x', 'c', at(20), at(21), { deleted: 1 }),
     ]);
     expect(r).toBe(1);
+  });
+});
+
+describe('blankSegments', () => {
+  const NOW = new Date(2026, 10, 12, 15, 0, 0).getTime(); // 固定「现在」= 当天 15:00
+  const DAY = new Date(2026, 10, 12, 0, 0, 0).getTime();
+  const at = (h, m = 0) => DAY + h * 3_600_000 + m * 60_000;
+
+  // 统一 mock 系统时间再调用（窗口截到 now，测试不随时钟漂移）
+  function withNow(fn) {
+    const real = Date.now;
+    Date.now = () => NOW;
+    try { return fn(); } finally { Date.now = real; }
+  }
+
+  it('合并已记录段后返回 ≥60min 的空隙（含头尾，尾部截到 now）', () => {
+    const events = [
+      ev('a', 'x', 'c', at(9), at(11)),
+      ev('b', 'x', 'c', at(10, 30), at(13)), // 与 a 重叠，合并后 9-13
+      ev('c', 'x', 'c', at(13, 20), at(13, 40)), // 20 分钟小段（13:00-13:20 与 13:40 后为空隙）
+    ];
+    const bs = withNow(() => blankSegments(events, { start: DAY, end: DAY + 86_400_000, minMs: 3_600_000 }));
+    expect(bs[0]).toEqual({ start: DAY, end: at(9) }); // 头部 0-9
+    expect(bs[bs.length - 1]).toEqual({ start: at(13, 40), end: at(15) }); // 尾部 13:40-15:00（截到 now）
+    expect(bs.some((b) => b.start === at(13) && b.end === at(13, 20))).toBe(false); // 20min 空隙被 minMs 过滤
+  });
+
+  it('小于 minMs 的空隙不返回', () => {
+    const events = [ev('a', 'x', 'c', at(9), at(9, 30)), ev('b', 'x', 'c', at(9, 50), at(10))];
+    const bs = withNow(() => blankSegments(events, { start: at(9), end: at(10), minMs: 3_600_000 }));
+    expect(bs).toEqual([]);
+  });
+
+  it('窗口截到 now：未来不算空白；进行中事件截到当前', () => {
+    const events = [ev('a', 'x', 'c', at(13), null)]; // 13:00 起进行中
+    const bs = withNow(() => blankSegments(events, { start: DAY, end: DAY + 86_400_000, minMs: 3_600_000 }));
+    // 头部 0-13 全空白（13-15 被进行中占用），15 点后未来不算
+    expect(bs).toEqual([{ start: DAY, end: at(13) }]);
+    expect(bs.every((b) => b.end <= at(15))).toBe(true);
   });
 });

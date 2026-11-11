@@ -7,6 +7,7 @@ import { useSyncStore } from '../stores/sync.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import { db } from '../db/schema.js';
 import { adoptRow, getMeta } from '../db/repo.js';
+import { tombstoneStats, vacuumTombstones } from '../db/repo.js';
 import { uuid } from '../lib/util.js';
 import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
@@ -284,6 +285,30 @@ async function backupNow() {
   }
 }
 
+// —— 数据维护：软删墓碑统计与清理 ——
+const tombs = ref(null);
+const vacuuming = ref(false);
+async function loadTombs() {
+  tombs.value = await tombstoneStats();
+}
+async function doVacuum() {
+  await showConfirmDialog({
+    title: '清理已删除记录？',
+    message: '仅清理 90 天前的软删墓碑（各设备早已同步一致）。保留近期墓碑以防多端回填。',
+  });
+  vacuuming.value = true;
+  try {
+    const n = await vacuumTombstones();
+    showToast(n ? `已清理 ${n} 条墓碑` : '没有可清理的墓碑');
+    await loadTombs();
+    sync.trigger(); // 清理后对账一次，保持游标一致
+  } catch (e) {
+    showToast(e?.message || '清理失败');
+  } finally {
+    vacuuming.value = false;
+  }
+}
+
 async function downloadBackup(b) {
   try {
     const blob = await api.backupDownload(b.name);
@@ -350,6 +375,7 @@ onMounted(() => {
   if (auth.hasToken) sync.setup();
   loadLogs();
   loadBackups();
+  loadTombs();
   logTimer = setInterval(loadLogs, 10_000);
 });
 onUnmounted(() => clearInterval(logTimer));
@@ -490,6 +516,22 @@ onUnmounted(() => clearInterval(logTimer));
         </div>
       </template>
       <div v-else class="hint" style="margin-top: 8px">连接同步服务器后，可开启「<b>自动每日快照</b>」——服务器每天留存一份数据副本（保留 30 份）。</div>
+    </div>
+
+    <!-- 数据维护：软删墓碑（本地库健康） -->
+    <div class="card">
+      <div class="section-title" style="margin-top: 0">数据维护</div>
+      <div class="hint" style="margin-bottom: 8px">
+        删除采用墓碑式（多端一致），长期堆积会拖慢同步。<b>清理仅针对 90 天前的墓碑</b>，近期删除记录保留以防多端回填。
+      </div>
+      <div class="sync-line">
+        <span class="muted">本地墓碑</span>
+        <span>{{ tombs ? `${tombs.total} 条` : '…' }}</span>
+      </div>
+      <div class="hint" v-if="tombs && tombs.total" style="margin: 2px 0 8px">
+        <span v-for="(n, t) in tombs.byTable" :key="t" style="margin-right: 10px">{{ t }} {{ n }}</span>
+      </div>
+      <van-button size="small" round plain :loading="vacuuming" @click="doVacuum">清理 90 天前的已删记录</van-button>
     </div>
 
     <!-- 运行日志 -->

@@ -9,7 +9,7 @@ import PauseReasonDialog from '../components/PauseReasonDialog.vue';
 import HandoffDialog from '../components/HandoffDialog.vue';
 import { getEventsBetween, getAllEvents, onChange } from '../db/repo.js';
 import { dayRange, fmtClock, fmtDur } from '../lib/time.js';
-import { byCategory, totalMs } from '../stats/aggregate.js';
+import { byCategory, totalMs, blankSegments } from '../stats/aggregate.js';
 import { quickActivities, recommendStart } from '../stats/recommend.js';
 import EventItem from '../components/EventItem.vue';
 import StartSheet from '../components/StartSheet.vue';
@@ -54,6 +54,20 @@ const runArcPct = computed(() => {
 });
 const runArcOffset = computed(() => RING_CIRC * (1 - Math.max(runArcPct.value, 3) / 100));
 const runArcLabel = computed(() => (runArcPct.value > 0 ? `今日该分类 ${runArcPct.value}%` : '今天的第一段'));
+
+// 空白补录助手：空闲时检测今日 ≥1h 的未记录空隙，提示一键预填补录
+// （柳比歇夫法要求全天可回溯，大段空白 = 没记全的信号）
+const hhmm = (ts) => new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+const todayBlanks = computed(() => {
+  if (timer.runningEvent) return []; // 计时中不打扰
+  const start = new Date().setHours(0, 0, 0, 0);
+  return blankSegments(todayEvents.value, { start, end: start + 86_400_000, minMs: 3_600_000 });
+});
+const latestBlank = computed(() => todayBlanks.value[todayBlanks.value.length - 1] || null);
+function backfillBlank(b) {
+  editing.value = { startAt: b.start, endAt: b.end }; // 无 id 草稿，EventEditor 自动补主键
+  showEditor.value = true;
+}
 
 // 环绕快捷球（习惯优先，补齐到 6 个）与面板推荐位
 const quickItems = computed(() =>
@@ -198,6 +212,12 @@ function openEdit(ev) {
       </div>
       <div v-else class="muted" style="text-align: center">
         点周围的快捷球一键开始，或点打卡自己选
+      </div>
+      <div v-if="latestBlank" class="card blank-hint" @click="backfillBlank(latestBlank)">
+        <div class="hint">
+          <span class="t-up">今日 {{ hhmm(latestBlank.start) }}–{{ hhmm(latestBlank.end) }} 没有记录</span>
+          （{{ fmtDur(latestBlank.end - latestBlank.start) }}）<template v-if="todayBlanks.length > 1">· 共 {{ todayBlanks.length }} 段空白 </template>，<b>一键补录这段时间</b>
+        </div>
       </div>
     </template>
 
@@ -344,6 +364,15 @@ function openEdit(ev) {
 }
 .run-stop:active {
   opacity: 0.85;
+}
+/* 空白补录助手提示卡 */
+.blank-hint {
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.blank-hint:active {
+  background: var(--card-3);
 }
 
 /* 居中的主打卡按钮：呼吸光晕 + 旋转虚线环 */

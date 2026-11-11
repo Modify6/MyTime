@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import dayjs from 'dayjs';
 import { getEventsBetween, onChange } from '../db/repo.js';
 import { monthRange, fmtDayLabel, fmtDur, shiftCursor } from '../lib/time.js';
-import { totalMs, layoutDayLanes, overlapCount } from '../stats/aggregate.js';
+import { totalMs, layoutDayLanes, overlapCount, blankSegments } from '../stats/aggregate.js';
 import { useCatalogStore } from '../stores/catalog.js';
 import EventItem from '../components/EventItem.vue';
 import EventEditor from '../components/EventEditor.vue';
@@ -110,6 +110,18 @@ const axisStats = computed(() => {
 
 // 当日时间重叠条数：柳比歇夫法要求串行记账，重叠多为补录交叉/忘打卡，提示用户点色块修正
 const axisOverlap = computed(() => (axisDay.value ? overlapCount(dayEvents(axisDay.value)) : 0));
+
+// 当日空白段（≥1h）：补录助手——最近一段一键预填补录
+const axisBlanks = computed(() => {
+  if (!axisDay.value) return [];
+  const { dayStart, dayEnd } = dayBounds(axisDay.value);
+  return blankSegments(dayEvents(axisDay.value), { start: dayStart, end: dayEnd, minMs: 3_600_000 });
+});
+const hhmm = (ts) => new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+function backfillBlank(b) {
+  editing.value = { startAt: b.start, endAt: b.end }; // 无 id 草稿，EventEditor 自动补主键
+  showEditor.value = true;
+}
 
 const axisDayShow = computed({
   get: () => axisDay.value != null,
@@ -302,6 +314,12 @@ function addRecord() {
         <div class="hint" v-if="axisOverlap" style="text-align: center; margin-top: 4px">
           <span class="t-up">该日有 {{ axisOverlap }} 段记录时间重叠</span> ·
           同一时刻只记一件事，点色块<b>可修正</b>
+        </div>
+        <div class="hint" v-if="axisBlanks.length" style="text-align: center; margin-top: 4px">
+          最近空档
+          <span class="t-up">{{ hhmm(axisBlanks[axisBlanks.length - 1].start) }}–{{ hhmm(axisBlanks[axisBlanks.length - 1].end) }}</span>
+          （{{ fmtDur(axisBlanks[axisBlanks.length - 1].end - axisBlanks[axisBlanks.length - 1].start) }}）
+          <b style="cursor: pointer" @click="backfillBlank(axisBlanks[axisBlanks.length - 1])">点此补录</b>
         </div>
 
         <div class="axis-body">
