@@ -19,7 +19,9 @@ function segs(p) {
 
 <template>
   <template v-if="note">
-    <span class="fn-btn" title="功能说明" @click.stop="show = true">?</span>
+    <span class="fn-btn" title="功能说明" @click.stop="show = true">
+      <van-icon name="notes-o" />说明
+    </span>
     <van-popup v-model:show="show" position="bottom" round class="popup-safe">
       <div class="fn-sheet">
         <div class="fn-head">
@@ -44,23 +46,24 @@ function segs(p) {
 </template>
 
 <style scoped>
-/* 入口按钮：右挂在页头右侧（与同步点成组），软色圆面而非细边圆圈 */
+/* 入口按钮：页头中间槽位的「图标+说明」软色胶囊（自解释，不似孤立的 ? 突兀） */
 .fn-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
   background: var(--seg-bg);
   color: var(--text-3);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
   cursor: pointer;
   user-select: none;
   flex: none;
-  margin-left: auto;
   transition: background 0.15s, color 0.15s;
+}
+.fn-btn :deep(.van-icon) {
+  font-size: 12px;
 }
 .fn-btn:active {
   background: var(--brand);
