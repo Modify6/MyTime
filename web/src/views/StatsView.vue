@@ -12,8 +12,11 @@ import {
   estimateCompare,
   estimateByCategory,
   heatmapData,
-  hourlySeries,
+  categoryDailySeries,
+  hourAverages,
+  recordStreak,
 } from '../stats/aggregate.js';
+import { chartPalette, chartTooltip } from '../lib/chart-theme.js';
 import { buildReview, categoryFlow, pauseReasonTrend } from '../stats/review.js';
 import { goalProgress, budgetProgress, GOAL_KIND_LABEL } from '../stats/goals.js';
 import dayjs from 'dayjs';
@@ -99,6 +102,8 @@ const planMax = computed(() =>
 
 // 专注热力图（近半年，独立于当前时段）
 const heat = computed(() => heatmapData(heatEvents.value, { weeks: 24, end: Date.now() }));
+// 连续记录天数：今天没记不断档（从昨天起算）
+const streakInfo = computed(() => recordStreak(heatEvents.value));
 
 function jumpToDay(key) {
   period.value = 'day';
@@ -197,6 +202,7 @@ const dayBand = computed(() => {
 // ② 周视图七柱：7 天 × 分类堆叠柱（今天列高亮）
 const weekBarsOption = computed(() => {
   if (period.value !== 'week') return null;
+  const cp = chartPalette(isDark.value);
   const days = Array.from({ length: 7 }, (_, i) => dayjs(range.value.start).add(i, 'day'));
   const catIds = [...new Set(events.value.map((e) => e.categoryId).filter(Boolean))];
   const todayIdx = days.findIndex((d) => d.isSame(dayjs(), 'day'));
@@ -219,44 +225,52 @@ const weekBarsOption = computed(() => {
       : {}),
   }));
   return {
-    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+    tooltip: chartTooltip(cp, { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) }),
     grid: { left: 6, right: 6, top: 18, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
       data: days.map((d) => d.format('M/D')),
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#8884' } },
-      axisLabel: { fontSize: 10, color: '#98a2b3' },
+      axisLine: { lineStyle: { color: cp.text3 + '66' } },
+      axisLabel: { fontSize: 10, color: cp.text3 },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: '#8882' } },
-      axisLabel: { fontSize: 10, color: '#98a2b3', formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
+      splitLine: { lineStyle: { color: cp.line } },
+      axisLabel: { fontSize: 10, color: cp.text3, formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
     },
     series,
   };
 });
 
-// ③ 近 30 天趋势：每日投入迷你面积图
+// ③ 近 30 天趋势：本期实线面积 + 上一个 30 天灰虚线（环比从数字变曲线形状对比）
 const trendOption = computed(() => {
+  const cp = chartPalette(isDark.value);
   const days = Array.from({ length: 30 }, (_, i) => dayjs().subtract(29 - i, 'day'));
-  const data = days.map((d) => {
-    let ms = 0;
-    for (const e of heatEvents.value) {
-      if (e.deleted) continue;
-      if (dayjs(e.startAt).isSame(d, 'day')) ms += Math.max(0, (e.endAt ?? Date.now()) - e.startAt);
+  const msOf = (offset) => {
+    const arr = [];
+    for (const d of days) {
+      const target = d.subtract(offset, 'day');
+      let ms = 0;
+      for (const e of heatEvents.value) {
+        if (e.deleted) continue;
+        if (dayjs(e.startAt).isSame(target, 'day')) ms += Math.max(0, (e.endAt ?? Date.now()) - e.startAt);
+      }
+      arr.push(Math.round(ms / 60000));
     }
-    return Math.round(ms / 60000);
-  });
+    return arr;
+  };
+  const cur = msOf(0);
+  const prev = msOf(30);
   return {
-    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
+    tooltip: chartTooltip(cp, { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) }),
     grid: { left: 6, right: 6, top: 14, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
       data: days.map((d) => d.format('M/D')),
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#8884' } },
-      axisLabel: { fontSize: 9, color: '#98a2b3', interval: 9 },
+      axisLine: { lineStyle: { color: cp.text3 + '66' } },
+      axisLabel: { fontSize: 9, color: cp.text3, interval: 9 },
     },
     yAxis: { type: 'value', splitLine: { show: false }, axisLabel: { show: false } },
     series: [
@@ -264,45 +278,91 @@ const trendOption = computed(() => {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        data,
-        lineStyle: { color: '#4f6ef7', width: 2 },
+        data: prev,
+        lineStyle: { color: cp.text3, width: 1.5, type: 'dashed' },
+        itemStyle: { color: cp.text3 },
+      },
+      {
+        type: 'line',
+        smooth: true,
+        symbol: 'none',
+        data: cur,
+        lineStyle: { color: cp.brand, width: 2 },
         areaStyle: { color: 'rgba(79,110,247,0.15)' },
+        itemStyle: { color: cp.brand },
       },
     ],
   };
 });
 
-// ⑦ 投入时段分布：近 30 天事件按 startAt 小时归入 0–23 时，按分类堆叠（几点最专注）
+// ⑦ 投入时段分布：近 30 天工作日 vs 周末的 0-23 时**日均**双曲线（求平均避免样本量差异）
 const hourBarsOption = computed(() => {
-  const rows = hourlySeries(heatEvents.value, { days: 30 });
-  const total = rows.reduce((s, r) => s + r.hours.reduce((a, b) => a + b, 0), 0);
+  const cp = chartPalette(isDark.value);
+  const r = hourAverages(heatEvents.value, { days: 30 });
+  const total = [...r.weekday, ...r.weekend].reduce((s, v) => s + v, 0);
   if (!total) return null;
-  const last = rows.length - 1;
-  const series = rows.map((r, si) => ({
-    name: catalog.catName(r.categoryId),
-    type: 'bar',
-    stack: 'total',
-    barWidth: 9,
-    itemStyle: { color: catalog.catColor(r.categoryId), borderRadius: si === last ? [3, 3, 0, 0] : 0 },
-    data: r.hours.map((ms) => Math.round(ms / 60000)),
-  }));
+  const hours = Array.from({ length: 24 }, (_, h) => `${h}时`);
   return {
-    tooltip: { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) },
-    grid: { left: 6, right: 6, top: 14, bottom: 0, containLabel: true },
+    tooltip: chartTooltip(cp, { trigger: 'axis', valueFormatter: (v) => fmtDur(v * 60000) }),
+    legend: {
+      show: true,
+      top: 0,
+      right: 0,
+      itemWidth: 14,
+      itemHeight: 8,
+      textStyle: { fontSize: 10, color: cp.text3 },
+    },
+    grid: { left: 6, right: 6, top: 22, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
-      data: Array.from({ length: 24 }, (_, h) => `${h}时`),
+      data: hours,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#8884' } },
-      axisLabel: { fontSize: 9, color: '#98a2b3', interval: 2 },
+      axisLine: { lineStyle: { color: cp.text3 + '66' } },
+      axisLabel: { fontSize: 9, color: cp.text3, interval: 2 },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: '#8882' } },
-      axisLabel: { fontSize: 9, color: '#98a2b3', formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
+      splitLine: { lineStyle: { color: cp.line } },
+      axisLabel: { fontSize: 9, color: cp.text3, formatter: (v) => (v >= 60 ? Math.round(v / 6) / 10 + 'h' : v + 'm') },
     },
-    series,
+    series: [
+      {
+        name: `工作日（${r.weekdayDays}天均）`,
+        type: 'line',
+        smooth: true,
+        symbol: 'none',
+        data: r.weekday,
+        lineStyle: { color: cp.brand, width: 2 },
+        itemStyle: { color: cp.brand },
+        areaStyle: { color: 'rgba(79,110,247,0.10)' },
+      },
+      {
+        name: `周末（${r.weekendDays}天均）`,
+        type: 'line',
+        smooth: true,
+        symbol: 'none',
+        data: r.weekend,
+        lineStyle: { color: '#f5a623', width: 2 },
+        itemStyle: { color: '#f5a623' },
+      },
+    ],
   };
+});
+
+// 分类小趋势：Top 4 分类近 30 天 sparkline + 环比上一 30 天
+const categoryTrends = computed(() => {
+  const rows = categoryDailySeries(heatEvents.value, { days: 60, top: 4 });
+  if (!rows.length) return [];
+  return rows.map((r) => {
+    const prev = r.daily.slice(0, 30).reduce((s, v) => s + v, 0);
+    const cur = r.daily.slice(30).reduce((s, v) => s + v, 0);
+    const pct = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null;
+    const pts = r.daily
+      .slice(30)
+      .map((ms, i) => `${(i / 29) * 100},${20 - Math.round((ms / Math.max(...r.daily.slice(30), 1)) * 18) - 1}`)
+      .join(' ');
+    return { categoryId: r.categoryId, total: cur, pct, points: pts };
+  });
 });
 
 // ⑥ 复盘时间流向：两条全宽堆叠色条（本期 vs 上期，按分类着色）
@@ -493,22 +553,40 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
       <EChart :option="weekBarsOption" height="200px" />
     </div>
 
-    <!-- 近 30 天趋势 -->
+    <!-- 近 30 天趋势：本期实线 vs 上期虚线 -->
     <div class="card" v-if="period !== 'review'">
       <div class="section-title" style="margin-top: 0">
         <span>近 30 天趋势</span>
-        <span class="muted">每日投入</span>
+        <span class="muted">灰虚线 = 上一个 30 天</span>
       </div>
-      <EChart :option="trendOption" height="120px" />
+      <EChart :option="trendOption" height="130px" />
     </div>
 
-    <!-- 投入时段分布：近 30 天 0–23 时，几点最专注 -->
+    <!-- 投入时段分布：工作日 vs 周末日均 -->
     <div class="card" v-if="period !== 'review' && hourBarsOption">
       <div class="section-title" style="margin-top: 0">
         <span>投入时段分布</span>
-        <span class="muted">近 30 天 · 越高的时段越专注</span>
+        <span class="muted">近 30 天 · 日均分钟</span>
       </div>
       <EChart :option="hourBarsOption" height="150px" />
+    </div>
+
+    <!-- 分类小趋势：Top 4 sparkline + 环比 -->
+    <div class="card" v-if="categoryTrends.length" style="padding-bottom: 8px">
+      <div class="section-title" style="margin-top: 0">
+        <span>分类小趋势</span>
+        <span class="muted">近 30 天 vs 上一 30 天</span>
+      </div>
+      <div class="ct-row" v-for="t in categoryTrends" :key="t.categoryId">
+        <i class="ct-dot" :style="{ background: catalog.catColor(t.categoryId) }"></i>
+        <span class="ct-name">{{ catalog.catName(t.categoryId) }}</span>
+        <svg class="ct-spark" viewBox="0 0 100 20" preserveAspectRatio="none">
+          <polyline :points="t.points" fill="none" :stroke="catalog.catColor(t.categoryId)" stroke-width="2" vector-effect="non-scaling-stroke" />
+        </svg>
+        <span class="ct-val">{{ fmtDur(t.total) }}</span>
+        <span v-if="t.pct != null" class="ct-pct" :class="t.pct > 0 ? 't-up' : 't-down'">{{ t.pct > 0 ? '▲' : t.pct < 0 ? '▼' : '—' }}{{ Math.abs(t.pct) }}%</span>
+        <span v-else class="ct-pct muted">新增</span>
+      </div>
     </div>
 
     <!-- 复盘模式：计划 vs 实际 + 时间流向堆叠 + 挂起原因 -->
@@ -613,7 +691,7 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
       <div class="card">
         <div class="section-title" style="margin-top: 0">
           <span>专注热力图</span>
-          <span class="muted">近半年 · {{ heat.activeDays }} 天有记录 · 共 {{ fmtDur(heat.total) }}</span>
+          <span class="muted">近半年 · {{ heat.activeDays }} 天有记录 · 共 {{ fmtDur(heat.total) }}<template v-if="streakInfo.streak > 0"> · 🔥 连续 {{ streakInfo.streak }} 天</template></span>
         </div>
         <div class="heat">
           <div class="heat-labels">
@@ -831,6 +909,50 @@ const next = () => (cursor.value = shiftCursor(effPeriod.value, cursor.value, 1)
 }
 .gp-behind {
   color: #f5a623;
+}
+/* 分类小趋势行 */
+.ct-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ct-row:last-child {
+  border-bottom: 0;
+}
+.ct-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ct-name {
+  width: 70px;
+  flex: none;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-spark {
+  flex: 1;
+  height: 22px;
+  min-width: 0;
+}
+.ct-val {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ct-pct {
+  flex: none;
+  width: 52px;
+  text-align: right;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
 }
 .gp-kind-budget {
   color: #f5a623;

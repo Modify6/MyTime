@@ -130,6 +130,77 @@ export function overlapCount(events) {
   return n;
 }
 
+// —— 可视化深化（v0.19.0）——
+
+// 分类日序列：近 N 天每个分类的逐日投入（供 sparkline/环比），按总投入降序。
+// 返回 [{ categoryId, name 需调用方补, total, daily: [ms×days] }]（daily 升序，末位为今天）。
+export function categoryDailySeries(events, { days = 30, end = Date.now(), top = 4 } = {}) {
+  const start = end - days * 86_400_000;
+  const acc = new Map();
+  for (const e of events || []) {
+    if (e.deleted || e.startAt < start || e.startAt >= end) continue;
+    const ms = dur(e);
+    if (ms <= 0) continue;
+    const cid = e.categoryId || '_';
+    if (!acc.has(cid)) acc.set(cid, { total: 0, daily: Array(days).fill(0) });
+    const a = acc.get(cid);
+    a.total += ms;
+    const idx = days - 1 - Math.floor((end - e.startAt - 1) / 86_400_000);
+    a.daily[Math.max(0, Math.min(days - 1, idx))] += ms;
+  }
+  return [...acc.entries()]
+    .map(([categoryId, a]) => ({ categoryId, total: a.total, daily: a.daily }))
+    .sort((x, y) => y.total - x.total)
+    .slice(0, top);
+}
+
+// 工作日/周末的小时均值：近 N 天投入按 0-23 时归格，分别取「工作日均值」「周末日均」
+// （求平均而非求和——两类天数样本量不同，直接相加会误导）。
+export function hourAverages(events, { days = 30, end = Date.now() } = {}) {
+  const start = end - days * 86_400_000;
+  const wd = Array(24).fill(0), we = Array(24).fill(0);
+  let wdN = 0, weN = 0;
+  const byDay = new Map();
+  for (const e of events || []) {
+    if (e.deleted || e.startAt < start || e.startAt >= end) continue;
+    const ms = dur(e);
+    if (ms <= 0) continue;
+    const d = dayjs(e.startAt);
+    const key = d.format('YYYY-MM-DD');
+    if (!byDay.has(key)) byDay.set(key, Array(24).fill(0));
+    byDay.get(key)[d.hour()] += ms;
+  }
+  for (const [key, hours] of byDay) {
+    const dow = (dayjs(key).day() + 6) % 7; // 0=周一
+    if (dow >= 5) { for (let i = 0; i < 24; i++) we[i] += hours[i]; weN++; }
+    else { for (let i = 0; i < 24; i++) wd[i] += hours[i]; wdN++; }
+  }
+  const avg = (arr, n) => (n ? arr.map((v) => Math.round(v / n / 60_000)) : arr.map(() => 0));
+  return { weekday: avg(wd, wdN), weekend: avg(we, weN), weekdayDays: wdN, weekendDays: weN };
+}
+
+// 连续记录天数（streak）：从今天往回数每天有投入（>0）的连续天数；
+// 今天还没记不断档（从昨天起算）。返回 { streak, includesToday }。
+export function recordStreak(events, { end = Date.now() } = {}) {
+  const totals = new Map();
+  for (const e of events || []) {
+    if (e.deleted) continue;
+    const ms = dur(e);
+    if (ms <= 0) continue;
+    const key = dayjs(e.startAt).format('YYYY-MM-DD');
+    totals.set(key, (totals.get(key) || 0) + ms);
+  }
+  const endDay = dayjs(end).startOf('day');
+  const includesToday = (totals.get(endDay.format('YYYY-MM-DD')) || 0) > 0;
+  let streak = 0;
+  let cursor = includesToday ? endDay : endDay.subtract(1, 'day');
+  while ((totals.get(cursor.format('YYYY-MM-DD')) || 0) > 0) {
+    streak++;
+    cursor = cursor.subtract(1, 'day');
+  }
+  return { streak, includesToday };
+}
+
 // 空白段检测（补录助手）：窗口 [start, end) 内未被任何记录覆盖、且时长 ≥ minMs 的空隙。
 // 已记录段截断到窗口（进行中按当前时刻截断），窗口终点截到 now（未来的"空白"不是遗漏）；
 // 头尾空隙同样返回，按时间升序。柳比歇夫法要求全天可回溯——大段空白是「没记全」的信号。

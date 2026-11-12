@@ -12,6 +12,9 @@ import {
   hourlySeries,
   overlapCount,
   blankSegments,
+  recordStreak,
+  hourAverages,
+  categoryDailySeries,
 } from '../src/stats/aggregate.js';
 import { titleHint, categoryHint } from '../src/stats/historyHint.js';
 import { shouldReplace } from '../src/db/merge.js';
@@ -300,5 +303,46 @@ describe('blankSegments', () => {
     // 头部 0-13 全空白（13-15 被进行中占用），15 点后未来不算
     expect(bs).toEqual([{ start: DAY, end: at(13) }]);
     expect(bs.every((b) => b.end <= at(15))).toBe(true);
+  });
+});
+describe('可视化深化三函数', () => {
+  // 固定终点：2026-11-12（周四）12:00
+  const END = new Date(2026, 10, 12, 12, 0, 0).getTime();
+  const dayAt = (daysAgo, h, m = 0) => END - daysAgo * 86_400_000 - (12 - h) * 3_600_000 + m * 60_000;
+
+  it('categoryDailySeries：按天归格+总量降序+top 截断', () => {
+    const events = [
+      ev('a', 'x', 'catA', dayAt(0, 9), dayAt(0, 10)), // 今天 1h
+      ev('b', 'x', 'catA', dayAt(1, 9), dayAt(1, 11)), // 昨天 2h
+      ev('c', 'x', 'catB', dayAt(0, 8, 30), dayAt(0, 11)), // 今天 2.5h
+      ev('d', 'x', 'catC', dayAt(40, 9), dayAt(40, 10)), // 窗口外
+    ];
+    const rows = categoryDailySeries(events, { days: 30, end: END, top: 2 });
+    expect(rows[0].categoryId).toBe('catA'); // 3h > 2.5h
+    expect(rows[0].daily[29]).toBe(1 * HOUR);
+    expect(rows[0].daily[28]).toBe(2 * HOUR);
+    expect(rows.length).toBe(2);
+  });
+
+  it('hourAverages：工作日/周末分桶并求日均（分钟）', () => {
+    // 2026-11-12 周四；11-11 周三（工作日）；11-07 周六（周末）
+    const events = [
+      ev('a', 'x', 'c', dayAt(0, 9), dayAt(0, 10)), // 工作日 9 时 60m
+      ev('b', 'x', 'c', dayAt(1, 9), dayAt(1, 11)), // 工作日 9 时 120m → 均值 90m
+      ev('c', 'x', 'c', dayAt(5, 20), dayAt(5, 22)), // 周六 20 时 120m
+    ];
+    const r = hourAverages(events, { days: 30, end: END });
+    expect(r.weekday[9]).toBe(90);
+    expect(r.weekend[20]).toBe(120);
+    expect(r.weekdayDays).toBe(2);
+    expect(r.weekendDays).toBe(1);
+  });
+
+  it('recordStreak：今天有记录含今天，今天没记从昨天起算，断档归零', () => {
+    const mk = (daysAgo) => ev('s' + daysAgo, 'x', 'c', dayAt(daysAgo, 9), dayAt(daysAgo, 10));
+    expect(recordStreak([mk(0), mk(1), mk(2)], { end: END })).toEqual({ streak: 3, includesToday: true });
+    expect(recordStreak([mk(1), mk(2), mk(3)], { end: END })).toEqual({ streak: 3, includesToday: false });
+    expect(recordStreak([mk(0), mk(2)], { end: END })).toEqual({ streak: 1, includesToday: true }); // 昨天断档
+    expect(recordStreak([], { end: END })).toEqual({ streak: 0, includesToday: false });
   });
 });
