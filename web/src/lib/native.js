@@ -50,6 +50,17 @@ export function openAppSettings() {
   window.Capacitor?.Plugins?.TimerNative?.openAppSettings?.();
 }
 
+// 应用图标切换（仅 APK）：TimerPlugin.setIcon 启停 activity-alias
+export async function setAppIcon(name) {
+  if (!isNative) return false;
+  try {
+    await window.Capacitor?.Plugins?.TimerNative?.setIcon?.({ name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // —— 安卓返回手势关弹层 ——
 // 原理：弹层打开时 pushState 入栈并注册关闭回调；返回手势触发 popstate 时关闭栈顶弹层
 const backStack = [];

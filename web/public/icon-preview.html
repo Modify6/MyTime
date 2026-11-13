@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MyTime 图标方案预览 · 第二批</title>
+<style>
+  :root {
+    --bg: #0f1218; --card: #171c26; --card-2: #1b212d; --line: #252b38;
+    --text: #e8ecf3; --text-2: #a3adbd; --text-3: #6b7280; --brand: #4f6ef7;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: var(--text-3); line-height: 1.7; margin-bottom: 20px; }
+  .sub b { color: var(--text-2); }
+  .scheme { background: var(--card); border: 2px solid transparent; border-radius: 16px;
+    padding: 16px; margin-bottom: 18px; cursor: pointer; transition: border-color .15s; }
+  .scheme.picked { border-color: var(--brand); }
+  .scheme h2 { font-size: 15px; margin: 0 0 2px; }
+  .scheme .desc { font-size: 12px; color: var(--text-2); line-height: 1.6; margin: 0 0 14px; }
+  .row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+  .cell { text-align: center; }
+  .cell .lab { font-size: 10px; color: var(--text-3); margin-top: 6px; }
+  .main svg { width: 150px; height: 150px; border-radius: 34px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .round svg, .light svg, .sq svg { width: 68px; height: 68px; }
+  .round svg { border-radius: 50%; }
+  .light svg { border-radius: 16px; }
+  .sq svg { border-radius: 12px; }
+  .light { background: #f5f6fa; padding: 6px; border-radius: 20px; }
+  .pick-line { margin-top: 12px; font-size: 12px; color: var(--text-3); }
+  .scheme.picked .pick-line { color: var(--brand); font-weight: 600; }
+  .desktop { background: linear-gradient(160deg, #1b2130 0%, #12151d 60%, #0c0e14 100%);
+    border-radius: 22px; padding: 22px 14px 16px; margin-top: 6px; }
+  .dock-row { display: flex; justify-content: space-around; gap: 8px; }
+  .app { text-align: center; width: 64px; }
+  .app svg { width: 52px; height: 52px; border-radius: 13px; }
+  .app .nm { font-size: 9px; color: #cfd6e2; margin-top: 4px; white-space: nowrap; }
+  .hint { text-align: center; font-size: 12px; color: var(--text-3); margin: 26px 0 8px; }
+</style>
+</head>
+<body>
+  <h1>MyTime 应用图标 · 第二批 6 案</h1>
+  <div class="sub">第一轮全军覆没说明方向不对——这批换了思路：<b>立体质感（G/L）、场景诗意（H/K）、彩色色轮（I）、动感势能（J）</b>。<br />
+  依旧展示 主图 / Android 圆形 / 浅色壁纸 / 方形 四上下文 + 底部桌面 mockup。<b>也可以用 ZCode 设计工具（Shift+点击元素）自己改颜色，数值会写回本文件。</b><br />点击卡片选中，回聊天告诉我编号。</div>
+  <div id="list"></div>
+  <div class="hint">桌面 mockup</div>
+  <div class="desktop"><div class="dock-row" id="dock"></div></div>
+
+<script>
+const S = [];
+
+/* G 厚表盘立体时钟 */
+S.push({
+  id: 'G', name: '方案 G · 立体表盘', desc: '白色厚表圈（带投影的内凹盘面）+ 10:08 白针 + 粉秒针——iOS 精致质感路线，不是第一轮的平面线框。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gG1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6d8bff"/><stop offset="1" stop-color="#3a50d6"/></linearGradient>
+      <linearGradient id="gG2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe4ff"/></linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="118" fill="url(#gG1)"/>
+    <circle cx="256" cy="266" r="152" fill="#22318c" opacity="0.5"/>
+    <circle cx="256" cy="254" r="152" fill="none" stroke="url(#gG2)" stroke-width="36"/>
+    <circle cx="256" cy="256" r="126" fill="#3a50d6" opacity="0.45"/>
+    <g stroke-linecap="round">
+      <line x1="262" y1="264" x2="188" y2="190" stroke="#1e2c80" stroke-width="27" opacity="0.4"/>
+      <line x1="256" y1="256" x2="180" y2="182" stroke="#ffffff" stroke-width="27"/>
+      <line x1="256" y1="256" x2="328" y2="316" stroke="#ffffff" stroke-width="27"/>
+      <line x1="256" y1="256" x2="350" y2="198" stroke="#ff8fb8" stroke-width="11"/>
+    </g>
+    <circle cx="256" cy="256" r="18" fill="#ffffff"/>
+    <circle cx="256" cy="256" r="7" fill="#3a50d6"/>
+  </svg>`});
+
+/* H 日出弧（昼夜） */
+S.push({
+  id: 'H', name: '方案 H · 日出弧', desc: '夜空月星之下，太阳从地平弧线升起——"记录完整的一天"的诗意场景，从深底里自然发光。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gH1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#232c54"/><stop offset="1" stop-color="#0d1020"/></linearGradient>
+      <linearGradient id="gH2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd98a"/><stop offset="1" stop-color="#f5a623"/></linearGradient>
+      <linearGradient id="gH3" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f5a623" stop-opacity="0.35"/><stop offset="1" stop-color="#0d1020" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="118" fill="url(#gH1)"/>
+    <path d="M0 356 L512 356 L512 512 L0 512 Z" fill="url(#gH3)"/>
+    <path d="M110 356 A146 146 0 0 1 402 356" fill="none" stroke="#8fa3d9" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+    <circle cx="256" cy="356" r="84" fill="url(#gH2)"/>
+    <g fill="#ffffff">
+      <circle cx="118" cy="120" r="6"/><circle cx="170" cy="86" r="4"/><circle cx="380" cy="100" r="5"/><circle cx="424" cy="160" r="4"/>
+    </g>
+    <path d="M400 84 a30 30 0 1 0 26 44 a24 24 0 1 1 -26 -44 z" fill="#e8ecf3" opacity="0.9"/>
+  </svg>`});
+
+/* I 彩色刻度环 */
+S.push({
+  id: 'I', name: '方案 I · 十二时刻色环', desc: '12 个分类色圆点围成表盘环，中心极简指针——像表盘又像色轮，深底上最高级的极简。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" rx="118" fill="#0e1118"/>
+    <g>
+      <circle cx="256" cy="110" r="19" fill="#4f6ef7"/>
+      <circle cx="334" cy="131" r="19" fill="#7c6cf7"/>
+      <circle cx="381" cy="178" r="19" fill="#b558f0"/>
+      <circle cx="402" cy="256" r="19" fill="#ec6c9d"/>
+      <circle cx="381" cy="334" r="19" fill="#f56d6d"/>
+      <circle cx="334" cy="381" r="19" fill="#f5926b"/>
+      <circle cx="256" cy="402" r="19" fill="#f0b95c"/>
+      <circle cx="178" cy="381" r="19" fill="#a8d95c"/>
+      <circle cx="131" cy="334" r="19" fill="#34c273"/>
+      <circle cx="110" cy="256" r="19" fill="#3fc9a0"/>
+      <circle cx="131" cy="178" r="19" fill="#3fc9c4"/>
+      <circle cx="178" cy="131" r="19" fill="#4fa8f0"/>
+    </g>
+    <g stroke-linecap="round" stroke="#ffffff">
+      <line x1="256" y1="256" x2="196" y2="196" stroke-width="22"/>
+      <line x1="256" y1="256" x2="312" y2="300" stroke-width="22"/>
+    </g>
+    <circle cx="256" cy="256" r="15" fill="#ffffff"/>
+  </svg>`});
+
+/* J 动感箭头 */
+S.push({
+  id: 'J', name: '方案 J · 时间势能', desc: '270° 粗白弧箭头收进缺口——时间的循环与推进感，蓝青渐变底上动势最强的一个。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="gJ1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8ef7"/><stop offset="1" stop-color="#3a50d6"/></linearGradient></defs>
+    <rect width="512" height="512" rx="118" fill="url(#gJ1)"/>
+    <path d="M148 356 A148 148 0 1 1 364 356" fill="none" stroke="#ffffff"
+      stroke-width="46" stroke-linecap="round"/>
+    <path d="M310 330 L392 372 L302 402 Z" fill="#ffffff"/>
+    <circle cx="256" cy="256" r="22" fill="#ffffff" opacity="0.9"/>
+  </svg>`});
+
+/* K 昼夜分屏 */
+S.push({
+  id: 'K', name: '方案 K · 昼夜分屏', desc: '左白天右深夜，中缝即指针——直白表达"全天每一刻都被记录"，冷暖对撞最抓眼。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gK1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#7aa8ff"/><stop offset="1" stop-color="#cfe0ff"/></linearGradient>
+      <linearGradient id="gK2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#232c54"/><stop offset="1" stop-color="#0d1020"/></linearGradient>
+      <clipPath id="gKclip"><rect x="256" y="0" width="256" height="512" rx="0"/></clipPath>
+    </defs>
+    <rect width="512" height="512" rx="118" fill="url(#gK1)"/>
+    <g clip-path="url(#gKclip)">
+      <rect width="512" height="512" fill="url(#gK2)"/>
+      <path d="M400 84 a30 30 0 1 0 26 44 a24 24 0 1 1 -26 -44 z" fill="#e8ecf3" opacity="0.9"/>
+      <g fill="#ffffff"><circle cx="330" cy="150" r="5"/><circle cx="452" cy="220" r="4"/><circle cx="360" cy="330" r="4"/></g>
+    </g>
+    <circle cx="140" cy="150" r="52" fill="#ffd98a"/>
+    <circle cx="118" cy="138" r="52" fill="#a8d4ff" opacity="0.0"/>
+    <g fill="#ffffff" opacity="0.85">
+      <ellipse cx="120" cy="300" rx="66" ry="24"/><ellipse cx="170" cy="326" rx="46" ry="18"/>
+    </g>
+    <rect x="250" y="0" width="12" height="512" fill="#ffffff" opacity="0.95"/>
+    <circle cx="256" cy="70" r="18" fill="#ffffff"/>
+    <circle cx="256" cy="442" r="18" fill="#ffffff"/>
+  </svg>`});
+
+/* L 层叠时间片 */
+S.push({
+  id: 'L', name: '方案 L · 层叠时刻', desc: '三张分类色时间片旋转错位堆叠，顶层白片上立极简指针——3D 层叠的当代 App 图标语法。', svg: `
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="gL1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9edff"/></linearGradient></defs>
+    <rect width="512" height="512" rx="118" fill="#10141c"/>
+    <rect x="106" y="126" width="280" height="280" rx="72" fill="#7c6cf7" transform="rotate(-10 246 266)"/>
+    <rect x="126" y="126" width="280" height="280" rx="72" fill="#4f6ef7" transform="rotate(7 266 266)"/>
+    <rect x="136" y="116" width="280" height="280" rx="72" fill="url(#gL1)"/>
+    <g stroke-linecap="round" stroke="#3a50d6">
+      <line x1="276" y1="256" x2="208" y2="198" stroke-width="22"/>
+      <line x1="276" y1="256" x2="332" y2="212" stroke-width="22"/>
+    </g>
+    <circle cx="276" cy="256" r="14" fill="#3a50d6"/>
+    <circle cx="384" cy="150" r="24" fill="#ec6c9d"/>
+  </svg>`});
+
+const list = document.getElementById('list');
+const dock = document.getElementById('dock');
+
+S.forEach((s) => {
+  const d = document.createElement('div');
+  d.className = 'scheme';
+  d.innerHTML = `
+    <h2>${s.name}</h2><p class="desc">${s.desc}</p>
+    <div class="row">
+      <div class="cell main">${s.svg}<div class="lab">主图</div></div>
+      <div class="cell round">${s.svg}<div class="lab">Android 圆形</div></div>
+      <div class="cell light">${s.svg}<div class="lab">浅色壁纸</div></div>
+      <div class="cell sq">${s.svg}<div class="lab">方形（iOS 风格参考）</div></div>
+    </div>
+    <div class="pick-line">点击卡片选中</div>`;
+  d.addEventListener('click', () => {
+    document.querySelectorAll('.scheme').forEach((x) => x.classList.remove('picked'));
+    d.classList.add('picked');
+    d.querySelector('.pick-line').textContent = '✓ 已选中方案 ' + s.id + '（回聊天告诉我即可）';
+  });
+  list.appendChild(d);
+  const app = document.createElement('div');
+  app.className = 'app';
+  app.innerHTML = s.svg + '<div class="nm">MyTime ' + s.id + '</div>';
+  dock.appendChild(app);
+});
+</script>
+</body>
+</html>

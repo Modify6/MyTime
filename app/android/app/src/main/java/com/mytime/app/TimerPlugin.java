@@ -136,6 +136,39 @@ public class TimerPlugin extends Plugin {
         call.resolve();
     }
 
+    /**
+     * 应用图标切换：启用所选 alias 并禁用其余五个（MainActivity 本体恒 enabled、无 LAUNCHER filter）。
+     * name ∈ {default,g,h,j,k,l}；default=IconI（主案）。桌面刷新可能延迟（部分 ROM 需重启桌面），提示语由 JS 层给出。
+     */
+    @PluginMethod
+    public void setIcon(PluginCall call) {
+        String name = call.getString("name", "default");
+        java.util.Map<String, String> aliases = new java.util.HashMap<>();
+        aliases.put("default", ".IconI");
+        aliases.put("g", ".IconG");
+        aliases.put("h", ".IconH");
+        aliases.put("j", ".IconJ");
+        aliases.put("k", ".IconK");
+        aliases.put("l", ".IconL");
+        if (!aliases.containsKey(name)) {
+            call.reject("unknown icon: " + name);
+            return;
+        }
+        Context ctx = getContext();
+        PackageManager pm = ctx.getPackageManager();
+        String pkg = ctx.getPackageName();
+        for (java.util.Map.Entry<String, String> e : aliases.entrySet()) {
+            int state = e.getKey().equals(name)
+                    ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+            pm.setComponentEnabledSetting(
+                    new android.content.ComponentName(pkg, pkg + e.getValue()),
+                    state, PackageManager.DONT_KILL_APP);
+        }
+        call.resolve();
+    }
+
+
     /** 服务在通知上点了"结束打卡"时通知 JS 层 */
     static void notifyStopRequested() {
         if (instance != null) {

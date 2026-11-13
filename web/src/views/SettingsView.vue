@@ -12,7 +12,8 @@ import { uuid } from '../lib/util.js';
 import { getLogs, logsToText, clearLogs, APP_VERSION } from '../lib/logger.js';
 import { getAutoBackup, setAutoBackup } from '../auth/local.js';
 import { api } from '../api/client.js';
-import { isNativeApp, nativeReminder, bindBackClose, openAppSettings } from '../lib/native.js';
+import { isNativeApp, nativeReminder, bindBackClose, openAppSettings, setAppIcon } from '../lib/native.js';
+import { APP_ICONS } from '../lib/app-icons.js';
 import { dailyNotifyEnabled, dailyNotifyTime, setDailyNotify } from '../lib/daily-notify.js';
 import VersionHistory from '../components/VersionHistory.vue';
 import FeatureNote from '../components/FeatureNote.vue';
@@ -196,6 +197,23 @@ const statusLabel = computed(() => {
 // —— 安装到手机 ——
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
 const isAndroid = /android/i.test(navigator.userAgent || '');
+
+// —— 应用图标切换（仅 APK）：activity-alias 六案互斥 ——
+const currentIcon = ref(localStorage.getItem('mytime.appIcon') || 'default');
+const iconBusy = ref(false);
+async function pickIcon(id) {
+  if (id === currentIcon.value || iconBusy.value) return;
+  iconBusy.value = true;
+  try {
+    const ok = await setAppIcon(id);
+    if (!ok) return showToast('切换失败');
+    currentIcon.value = id;
+    localStorage.setItem('mytime.appIcon', id);
+    showToast('已切换 · 桌面图标稍后刷新（部分手机需重启桌面）');
+  } finally {
+    iconBusy.value = false;
+  }
+}
 
 // —— 运行日志 ——
 const logs = ref([]);
@@ -534,6 +552,25 @@ onUnmounted(() => clearInterval(logTimer));
       <van-button size="small" round plain :loading="vacuuming" @click="doVacuum">清理 90 天前的已删记录</van-button>
     </div>
 
+    <!-- 应用图标切换（仅 APK） -->
+    <div class="card" v-if="isNativeApp">
+      <div class="section-title" style="margin-top: 0">应用图标</div>
+      <div class="icon-grid">
+        <button
+          v-for="ic in APP_ICONS"
+          :key="ic.id"
+          class="icon-item"
+          :class="{ active: currentIcon === ic.id }"
+          :disabled="iconBusy"
+          @click="pickIcon(ic.id)"
+        >
+          <span class="icon-thumb" v-html="ic.svg"></span>
+          <span class="icon-name">{{ ic.name }}</span>
+        </button>
+      </div>
+      <div class="muted" style="margin-top: 8px">切换后桌面图标稍后刷新（部分手机需重启桌面才生效）。</div>
+    </div>
+
     <!-- 运行日志 -->
     <div class="card">
       <div class="section-title" style="margin-top: 0">
@@ -758,5 +795,43 @@ onUnmounted(() => clearInterval(logTimer));
 }
 .backup-item:last-of-type {
   border-bottom: 0;
+}
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.icon-item {
+  border: 2px solid var(--line);
+  background: var(--card-2);
+  border-radius: 14px;
+  padding: 10px 4px 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.icon-item.active {
+  border-color: var(--brand);
+}
+.icon-item:disabled {
+  opacity: 0.6;
+}
+.icon-thumb {
+  display: block;
+}
+.icon-thumb :deep(svg) {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  display: block;
+  margin: 0 auto;
+}
+.icon-name {
+  display: block;
+  font-size: 10px;
+  color: var(--text-2);
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

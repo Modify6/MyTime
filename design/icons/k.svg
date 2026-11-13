@@ -1,0 +1,23 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gK1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#7aa8ff"/><stop offset="1" stop-color="#cfe0ff"/></linearGradient>
+      <linearGradient id="gK2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#232c54"/><stop offset="1" stop-color="#0d1020"/></linearGradient>
+      <clipPath id="gKclip"><rect x="256" y="0" width="256" height="512" rx="0"/></clipPath>
+    </defs>
+    <rect width="512" height="512" rx="118" fill="url(#gK1)"/>
+    <g clip-path="url(#gKclip)">
+      <rect width="512" height="512" fill="url(#gK2)"/>
+      <path d="M400 84 a30 30 0 1 0 26 44 a24 24 0 1 1 -26 -44 z" fill="#e8ecf3" opacity="0.9"/>
+      <g fill="#ffffff"><circle cx="330" cy="150" r="5"/><circle cx="452" cy="220" r="4"/><circle cx="360" cy="330" r="4"/></g>
+    </g>
+    <circle cx="140" cy="150" r="52" fill="#ffd98a"/>
+    <circle cx="118" cy="138" r="52" fill="#a8d4ff" opacity="0.0"/>
+    <g fill="#ffffff" opacity="0.85">
+      <ellipse cx="120" cy="300" rx="66" ry="24"/><ellipse cx="170" cy="326" rx="46" ry="18"/>
+    </g>
+    <rect x="250" y="0" width="12" height="512" fill="#ffffff" opacity="0.95"/>
+    <circle cx="256" cy="70" r="18" fill="#ffffff"/>
+    <circle cx="256" cy="442" r="18" fill="#ffffff"/>
+  </svg>
